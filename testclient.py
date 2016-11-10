@@ -1,4 +1,4 @@
-from irondb import IronDBFinder, IronDBReader
+from irondb import IronDBFinder, IronDBReader, IronDBMeasurementFetcher
 import sys
 
 class Query():
@@ -7,8 +7,9 @@ class Query():
 
 class IronDBClient():
 
-    def __init__(self):
-        self.finder = IronDBFinder({'irondb': {'url': 'http://rberton.dev.circonus.net:8112/graphite/29FB4AAC-189D-4460-9E09-559232663773'}})
+    def __init__(self, url):
+        self.url = url
+        self.finder = IronDBFinder({'irondb': {'url': self.url}})
 
     def find_metrics(self, query):
         q = Query(query);
@@ -20,7 +21,9 @@ class IronDBClient():
                 print "Branch node: " + node.path
 
     def get_data(self, metric, start, end):
-        r = IronDBReader(metric)
+        f = IronDBMeasurementFetcher()
+        f.add_leaf(metric)
+        r = IronDBReader(metric, f)
         ti, data = r.fetch(start, end)
         print "Time info: start:" + str(ti[0]) + ", end:" + str(ti[1]) + ", data: " + str(ti[2])
         for point in data:
@@ -28,11 +31,12 @@ class IronDBClient():
         
 
 if __name__ == "__main__":
-    x = IronDBClient()
-    q = sys.argv[1]
-    if len(sys.argv) == 2:
+    u = sys.argv[1]
+    q = sys.argv[2]
+    x = IronDBClient(u)
+    if len(sys.argv) == 3:
         print "Querying for: " + q
         x.find_metrics(q)
     else:
         print "Getting data for: " + q
-        x.get_data(q, int(sys.argv[2]), int(sys.argv[3]))
+        x.get_data(q, int(sys.argv[3]), int(sys.argv[4]))

@@ -3,65 +3,52 @@ Graphite-IronDB
 
 A plugin for using graphite with the IronDB from Circonus.
 
-Requires `Graphite-API`_ **(preferred)** or Graphite-web 0.10.X.
-
-Graphite-API is available on PyPI. Read the `documentation`_ for more
-information.
+Requires Graphite-web 0.10.X.
 
 Graphite-web 0.10.X is currently unreleased. You'll need to install from
 source.
 
-.. _Graphite-API: https://github.com/brutasse/graphite-api
-.. _documentation: https://graphite-api.readthedocs.io/en/latest/
-
 Installation
 ------------
 
-::
-
-    pip install graphite-irondb
-
-Using with graphite-api
------------------------
-
-In your graphite-api config file::
-
-    irondb:
-      urls:
-        - http://irondb-host:port
-    finders:
-      - irondb.IronDBFinder
+```
+$ git clone http://github.com/circonus-labs/graphite-irondb
+$ cd graphite-irondb
+$ sudo python setup.py install
+```
 
 Using with graphite-web
 -----------------------
 
-In your graphite's ``local_settings.py``::
+In your graphite's `local_settings.py`:
 
     STORAGE_FINDERS = (
         'irondb.IronDBFinder',
     )
 
     IRONDB_URLS = (
-        'http://irondb-host:port'
+        'http://<irondb-host>:<port>/graphite/<account>'
     )
 
-Where ``irondb-host:port`` is the location of the an IronDB node. If you have
-a multi-node IronDB installation (likely), you should specify multiple URLS,
-or place the IronDB installation behind a load balancer.
+    IRONDB_BATCH_SIZE = 250
 
-    # Graphite-API
-    irondb:
-      urls:
-        - http://host1:port
-        - http://host2:port
+Where `irondb-host` is the DNS or IP of an IronDB node, `port` (usually 8112)
+is the listening port for IronDB, and <account> is some integer you have been
+ingesting your metrics under (see Namespacing in the IronDB docs).  If you have
+a multi-node IronDB installation (likely), you should specify multiple URLS
+(one for each node in the cluster), or place the IronDB installation behind a
+load balancer.  For example,
 
-    # Graphite-web
     IRONDB_URLS = (
-        'http://host1:port',
-        'http://host2:port',
+        'http://host1:8112/graphite/1',
+        'http://host2:8112/graphite/1',
     )
+
+IRONDB_BATCH_SIZE is optional and will default to 250.  Batch size is used to perform
+multi-fetch from the IronDB backend if you use graphs with wildcard expansions in the
+datapoints.
 
 Changelog
 ---------
 
-* **0.0.1** (2016-10-31): initial version.
+* **0.0.1** (2016-11-10): initial version.
