@@ -43,6 +43,7 @@ class IronDBMeasurementFetcher(object):
         self.leaves = list()
         self.lock = threading.Lock()
         self.fetched = False
+        self.results = {}
 
     def add_leaf(self, leaf_name):
         self.leaves.append(leaf_name)
@@ -56,12 +57,12 @@ class IronDBMeasurementFetcher(object):
                 params['names'] = self.leaves
                 params['start'] = start_time
                 params['end'] = end_time
-                d = requests.post(urls.series_multi, json = params).json()
-                self.results = d
+                d = requests.post(urls.series_multi, json = params)
+                self.results = d.json()
                 self.fetched = True
             self.lock.release()
     def is_error(self):
-        return 'error' in self.results
+        return self.results == None or 'error' in self.results
     
     def series(self, name):
         if (len(self.results['series'])) == 0:
@@ -79,8 +80,8 @@ class IronDBReader(object):
 
     def fetch(self, start_time, end_time):
         self.fetcher.fetch(start_time, end_time)
-        if self.fetcher.is_error():
-            return (start_time, end_time, end_time - start_time), []
+        if self.fetcher.is_error() or len(self.fetcher.results['series'].get(self.name, [])) == 0:
+            return None 
         return self.fetcher.series(self.name)
 
     def get_intervals(self):
