@@ -58,3 +58,4 @@ Changelog
 ---------
 
 * **0.0.1** (2016-11-10): initial version.
+* **0.0.2** (2017-05-25): fix queries where there is no data for one or more of the requested time series
