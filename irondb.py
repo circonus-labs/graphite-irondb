@@ -64,11 +64,14 @@ class IronDBMeasurementFetcher(object):
     def is_error(self):
         return self.results == None or 'error' in self.results
     
-    def series(self, name):
-        if (len(self.results['series'])) == 0:
+    def series(self, name):            
+        if self.is_error() or len(self.results['series']) == 0:
             return
-            
+
         time_info = self.results['from'], self.results['to'], self.results['step']
+        if len(self.results['series'].get(name, [])) == 0:
+            return time_info, [None] * ((self.results['to'] - self.results['from']) / self.results['step'])
+
         return time_info, self.results['series'].get(name, [])
 
 class IronDBReader(object):
@@ -80,8 +83,6 @@ class IronDBReader(object):
 
     def fetch(self, start_time, end_time):
         self.fetcher.fetch(start_time, end_time)
-        if self.fetcher.is_error() or len(self.fetcher.results['series'].get(self.name, [])) == 0:
-            return None 
         return self.fetcher.series(self.name)
 
     def get_intervals(self):
