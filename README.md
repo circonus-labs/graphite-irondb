@@ -70,14 +70,15 @@ IRONDB_BATCH_SIZE is optional and will default to 250.  Batch size is
 used to perform multi-fetch from the IronDB backend if you use graphs
 with wildcard expansions in the datapoints.
 
-IRONDB_USE_DATABASE_ROLLUPS is optional and will default to True. IRONdb
-can automatically choose the "step" of the returned data if this param
-is set to True.  Calculation for "step" is based on the time span of
-the query.  If you set this to False, IRONdb will return the minimum
-rollup span it is configured to return for all data.  This can result
-in slower renders as much more data will be returned than may be
-necessary for rendering.  However, some graphite functions (like summarize)
-require finer resolution data in order to group data properly.
+IRONDB_USE_DATABASE_ROLLUPS is optional python boolean (True|False)
+and will default to True. IRONdb can automatically choose the "step"
+of the returned data if this param is set to True.  Calculation for
+"step" is based on the time span of the query.  If you set this to
+False, IRONdb will return the minimum rollup span it is configured to
+return for all data.  This can result in slower renders as much more
+data will be returned than may be necessary for rendering.  However,
+some graphite functions (like summarize) require finer resolution data
+in order to group data properly.
 
 Changelog
 ---------

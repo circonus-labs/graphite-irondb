@@ -127,9 +127,7 @@ class IronDBFinder(object):
             except AttributeError:
                 self.headers = {}
             try:
-                token = getattr(settings, 'IRONDB_USE_DATABASE_ROLLUPS')
-                if token:
-                    self.database_rollups = token in ['true', 'True', '1', 't', 'y', 'yes' ]
+                self.database_rollups = getattr(settings, 'IRONDB_USE_DATABASE_ROLLUPS')
             except AttributeError:
                 self.database_rollups = True
                 
