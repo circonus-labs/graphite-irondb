@@ -37,14 +37,15 @@ urls = None
 urllength = 4096
 
 class IronDBMeasurementFetcher(object):
-    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers')
+    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups')
     
-    def __init__(self, headers):
+    def __init__(self, headers, db_rollups):
         self.leaves = list()
         self.lock = threading.Lock()
         self.fetched = False
         self.results = {}
         self.headers = {}
+        self.database_rollups = db_rollups
 	if headers:
         	self.headers = headers
 
@@ -60,6 +61,7 @@ class IronDBMeasurementFetcher(object):
                 params['names'] = self.leaves
                 params['start'] = start_time
                 params['end'] = end_time
+                params['database_rollups'] = self.database_rollups
                 d = requests.post(urls.series_multi, json = params, headers = self.headers)
                 self.results = d.json()
                 self.fetched = True
@@ -98,6 +100,7 @@ class IronDBFinder(object):
     def __init__(self, config=None):
         global urls
         self.batch_size = 250
+        self.database_rollups = True
         if config is not None:
             if 'urls' in config['irondb']:
                 urls = config['irondb']['urls']
@@ -123,6 +126,12 @@ class IronDBFinder(object):
                     self.headers = { 'X-Circonus-Auth-Token': token, 'X-Circonus-App-Name': 'graphite-web' }
             except AttributeError:
                 self.headers = {}
+            try:
+                token = getattr(settings, 'IRONDB_USE_DATABASE_ROLLUPS')
+                if token:
+                    self.database_rollups = token in ['true', 'True', '1', 't', 'y', 'yes' ]
+            except AttributeError:
+                self.database_rollups = True
                 
         urls = URLs(urls)
 
@@ -132,7 +141,7 @@ class IronDBFinder(object):
         # for each set of self.batch_size leafnodes, execute an IronDBMeasurementFetcher
         # so we can do these in batches.
         counter = 0
-        fetcher = IronDBMeasurementFetcher(self.headers)
+        fetcher = IronDBMeasurementFetcher(self.headers, self.database_rollups)
                 
         for name in names:
             if name['leaf']:
@@ -140,7 +149,7 @@ class IronDBFinder(object):
                 reader = IronDBReader(name['name'], fetcher)
                 counter = counter + 1
                 if (counter % self.batch_size == 0):
-                    fetcher = IronDBMeasurementFetcher(self.headers)
+                    fetcher = IronDBMeasurementFetcher(self.headers, self.database_rollups)
                     counter = 0                
                 yield LeafNode(name['name'], reader)
             else:
