@@ -49,8 +49,8 @@ class IronDBMeasurementFetcher(object):
 	if headers:
         	self.headers = headers
 
-    def add_leaf(self, leaf_name):
-        self.leaves.append(leaf_name)
+    def add_leaf(self, leaf_name, leaf_data):
+        self.leaves.append({'leaf_name': leaf_name, 'leaf_data': leaf_data})
 
     def fetch(self, start_time, end_time):
         if (self.fetched == False):
@@ -143,7 +143,7 @@ class IronDBFinder(object):
                 
         for name in names:
             if name['leaf']:
-                fetcher.add_leaf(name['name'])
+                fetcher.add_leaf(name['name'], name['leaf_data'])
                 reader = IronDBReader(name['name'], fetcher)
                 counter = counter + 1
                 if (counter % self.batch_size == 0):
