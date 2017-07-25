@@ -27,7 +27,7 @@ In your graphite's `local_settings.py`:
     )
 
     IRONDB_URLS = (
-        'http://<irondb-host>:<port>/graphite/<account>/<optional_query_prefix>'
+        'http://<irondb-host>:<port>/graphite/<account>/<optional_query_prefix>',
     )
 
     CIRCONUS_TOKEN = '0005cc1f-5b27-4b60-937b-7c73a25dfef7'
@@ -52,6 +52,9 @@ IronDB installation behind a load balancer.  For example,
         'http://host1:8112/graphite/1',
         'http://host2:8112/graphite/1',
     )
+
+NOTE: the IRONDB_URLS is a python list and therefore must end with a 
+trailing comma on the last entry.
 
 If you are pointing graphite at a Circonus SaaS account, set the token
 to a valid Circonus Auth Token and set the URL to the public API URL.
