@@ -70,7 +70,7 @@ class IronDBMeasurementFetcher(object):
                 at_least_tries = 3
                 for i in range(0, max(urls.host_count, at_least_tries)):
                     try:
-                        d = requests.post(urls.series_multi, json = params, headers = self.headers, timeout=(3.05, 30))
+                        d = requests.post(urls.series_multi, json = params, headers = self.headers, timeout=(3.05, 10))
                         self.results = d.json()
                         self.fetched = True
                         break
@@ -150,7 +150,7 @@ class IronDBFinder(object):
         at_least_tries = 3
         for i in range(0, max(urls.host_count, at_least_tries)):
             try:
-                names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=(3.05, 10)).json()
+                names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=(3.05, 5)).json()
                 break
             except requests.exceptions.RequestException:
                 # on down nodes, try again on another node until we try them all
