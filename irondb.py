@@ -16,6 +16,7 @@ import requests
 class URLs(object):
     def __init__(self, hosts):
         self.iterator = itertools.cycle(hosts)
+        self.hc = len(hosts)
 
     @property
     def host(self):
@@ -32,6 +33,10 @@ class URLs(object):
     @property
     def series_multi(self):
         return '{0}/series_multi/'.format(self.host)
+
+    @property
+    def host_count(self):
+        return self.hc
 
 urls = None
 urllength = 4096
@@ -62,9 +67,14 @@ class IronDBMeasurementFetcher(object):
                 params['start'] = start_time
                 params['end'] = end_time
                 params['database_rollups'] = self.database_rollups
-                d = requests.post(urls.series_multi, json = params, headers = self.headers)
-                self.results = d.json()
-                self.fetched = True
+                for i in range(0, urls.host_count):
+                    try:
+                        d = requests.post(urls.series_multi, json = params, headers = self.headers)
+                        self.results = d.json()
+                        self.fetched = True
+                        break
+                    except ConnectionError:
+                        # on down nodes, try again on another node until we try them all
             self.lock.release()
     def is_error(self):
         return self.results == None or 'error' in self.results
