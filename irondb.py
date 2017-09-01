@@ -69,7 +69,7 @@ class IronDBMeasurementFetcher(object):
                 params['database_rollups'] = self.database_rollups
                 for i in range(0, urls.host_count):
                     try:
-                        d = requests.post(urls.series_multi, json = params, headers = self.headers)
+                        d = requests.post(urls.series_multi, json = params, headers = self.headers, timeout=(3.05, 30))
                         self.results = d.json()
                         self.fetched = True
                         break
@@ -148,7 +148,7 @@ class IronDBFinder(object):
         names = {}
         for i in range(0, urls.host_count):
             try:
-                names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers).json()
+                names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=(3.05, 10)).json()
                 break
             except ConnectionError:
                 # on down nodes, try again on another node until we try them all
