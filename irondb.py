@@ -67,7 +67,8 @@ class IronDBMeasurementFetcher(object):
                 params['start'] = start_time
                 params['end'] = end_time
                 params['database_rollups'] = self.database_rollups
-                for i in range(0, urls.host_count):
+                at_least_tries = 3
+                for i in range(0, max(urls.host_count, at_least_tries)):
                     try:
                         d = requests.post(urls.series_multi, json = params, headers = self.headers, timeout=(3.05, 30))
                         self.results = d.json()
@@ -146,7 +147,8 @@ class IronDBFinder(object):
 
     def find_nodes(self, query):
         names = {}
-        for i in range(0, urls.host_count):
+        at_least_tries = 3
+        for i in range(0, max(urls.host_count, at_least_tries)):
             try:
                 names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=(3.05, 10)).json()
                 break
