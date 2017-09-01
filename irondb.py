@@ -75,6 +75,7 @@ class IronDBMeasurementFetcher(object):
                         break
                     except ConnectionError:
                         # on down nodes, try again on another node until we try them all
+                        pass
             self.lock.release()
     def is_error(self):
         return self.results == None or 'error' in self.results
@@ -144,8 +145,15 @@ class IronDBFinder(object):
         urls = URLs(urls)
 
     def find_nodes(self, query):
-        url = urls.names
-        names = requests.get(url, params={'query': query.pattern}, headers=self.headers).json()
+        names = {}
+        for i in range(0, urls.host_count):
+            try:
+                names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers).json()
+                break
+            except ConnectionError:
+                # on down nodes, try again on another node until we try them all
+                pass
+
         # for each set of self.batch_size leafnodes, execute an IronDBMeasurementFetcher
         # so we can do these in batches.
         counter = 0
