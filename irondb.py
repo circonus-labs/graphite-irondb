@@ -6,16 +6,17 @@ import django
 from graphite.intervals import Interval, IntervalSet
 from graphite.node import LeafNode, BranchNode
 
-try:    
+try:
     from graphite.logger import log
 except django.core.exceptions.ImproperlyConfigured:
     print "No graphite logger"
-    
+
 import requests
 
 class URLs(object):
     def __init__(self, hosts):
         self.iterator = itertools.cycle(hosts)
+        self.hc = len(hosts)
 
     @property
     def host(self):
@@ -32,13 +33,17 @@ class URLs(object):
     @property
     def series_multi(self):
         return '{0}/series_multi/'.format(self.host)
-    
+
+    @property
+    def host_count(self):
+        return self.hc
+
 urls = None
 urllength = 4096
 
 class IronDBMeasurementFetcher(object):
     __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups')
-    
+
     def __init__(self, headers, db_rollups):
         self.leaves = list()
         self.lock = threading.Lock()
@@ -62,15 +67,22 @@ class IronDBMeasurementFetcher(object):
                 params['start'] = start_time
                 params['end'] = end_time
                 params['database_rollups'] = self.database_rollups
-                d = requests.post(urls.series_multi, json = params, headers = self.headers)
-                self.results = d.json()
-                self.fetched = True
+                at_least_tries = 3
+                for i in range(0, max(urls.host_count, at_least_tries)):
+                    try:
+                        d = requests.post(urls.series_multi, json = params, headers = self.headers, timeout=(3.05, 10))
+                        self.results = d.json()
+                        self.fetched = True
+                        break
+                    except requests.exceptions.RequestException:
+                        # on problems, try again on another node until we try them all
+                        pass
             self.lock.release()
     def is_error(self):
-        return self.results == None or 'error' in self.results
-    
-    def series(self, name):            
-        if self.is_error() or len(self.results['series']) == 0:
+        return self.fetched == False or self.results == None or 'error' in self.results or 'series' not in self.results or len(self.results['series']) == 0
+
+    def series(self, name):
+        if self.is_error():
             return
 
         time_info = self.results['from'], self.results['to'], self.results['step']
@@ -130,17 +142,25 @@ class IronDBFinder(object):
                 self.database_rollups = getattr(settings, 'IRONDB_USE_DATABASE_ROLLUPS')
             except AttributeError:
                 self.database_rollups = True
-                
+
         urls = URLs(urls)
 
     def find_nodes(self, query):
-        url = urls.names
-        names = requests.get(url, params={'query': query.pattern}, headers=self.headers).json()
+        names = {}
+        at_least_tries = 3
+        for i in range(0, max(urls.host_count, at_least_tries)):
+            try:
+                names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=(3.05, 5)).json()
+                break
+            except requests.exceptions.RequestException:
+                # on down nodes, try again on another node until we try them all
+                pass
+
         # for each set of self.batch_size leafnodes, execute an IronDBMeasurementFetcher
         # so we can do these in batches.
         counter = 0
         fetcher = IronDBMeasurementFetcher(self.headers, self.database_rollups)
-                
+
         for name in names:
             if name['leaf']:
                 fetcher.add_leaf(name['name'], name['leaf_data'])
@@ -148,8 +168,7 @@ class IronDBFinder(object):
                 counter = counter + 1
                 if (counter % self.batch_size == 0):
                     fetcher = IronDBMeasurementFetcher(self.headers, self.database_rollups)
-                    counter = 0                
+                    counter = 0
                 yield LeafNode(name['name'], reader)
             else:
                 yield BranchNode(name['name'])
-
