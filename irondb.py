@@ -78,10 +78,10 @@ class IronDBMeasurementFetcher(object):
                         pass
             self.lock.release()
     def is_error(self):
-        return self.results == None or 'error' in self.results
+        return self.fetched == False or self.results == None or 'error' in self.results or 'series' not in self.results or len(self.results['series']) == 0
 
     def series(self, name):
-        if self.is_error() or len(self.results['series']) == 0:
+        if self.is_error():
             return
 
         time_info = self.results['from'], self.results['to'], self.results['step']
