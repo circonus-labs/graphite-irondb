@@ -53,8 +53,8 @@ class IronDBMeasurementFetcher(object):
         self.headers = {}
         self.timeout = timeout
         self.database_rollups = db_rollups
-	    if headers:
-        	self.headers = copy.deepcopy(headers)
+        if headers:
+            self.headers = copy.deepcopy(headers)
         self.headers['X-Snowth-Timeout'] = str(self.timeout) + 'ms'
 
     def add_leaf(self, leaf_name, leaf_data):
