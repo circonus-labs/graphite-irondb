@@ -172,7 +172,7 @@ class IronDBFinder(object):
         # for each set of self.batch_size leafnodes, execute an IronDBMeasurementFetcher
         # so we can do these in batches.
         counter = 0
-        fetcher = IronDBMeasurementFetcher(self.headers, self.database_rollups)
+        fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.database_rollups)
 
         for name in names:
             if name['leaf']:
