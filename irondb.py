@@ -43,7 +43,7 @@ urls = None
 urllength = 4096
 
 class IronDBMeasurementFetcher(object):
-    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups')
+    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout')
 
     def __init__(self, headers, timeout, db_rollups):
         self.leaves = list()
