@@ -34,6 +34,7 @@ In your graphite's `local_settings.py`:
 
     IRONDB_BATCH_SIZE = 250
     IRONDB_USE_DATABASE_ROLLUPS = True
+    IRONDB_TIMEOUT_MS = 10000
 
 Where `irondb-host` is the DNS or IP of an IronDB node, `port`
 (usually 8112) is the listening port for IronDB, and <account> is some
@@ -82,6 +83,9 @@ return for all data.  This can result in slower renders as much more
 data will be returned than may be necessary for rendering.  However,
 some graphite functions (like summarize) require finer resolution data
 in order to group data properly.
+
+IRONDB_TIMEOUT_MS is optional and will default to 10000.  With IRONdb >= 0.9.8
+this will set an absolute timeout after which queries will be cut off.
 
 Changelog
 ---------
