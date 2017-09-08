@@ -54,8 +54,7 @@ class IronDBMeasurementFetcher(object):
         self.timeout = timeout
         self.database_rollups = db_rollups
         if headers:
-            self.headers = copy.deepcopy(headers)
-        self.headers['X-Snowth-Timeout'] = str(self.timeout) + 'ms'
+            self.headers = headers
 
     def add_leaf(self, leaf_name, leaf_data):
         self.leaves.append({'leaf_name': leaf_name, 'leaf_data': leaf_data})
@@ -142,6 +141,7 @@ class IronDBFinder(object):
                     self.timeout = int(to)
             except AttributeError:
                 self.timeout = 10000
+            self.headers['X-Snowth-Timeout'] = str(self.timeout) + 'ms'
             try:
                 token = getattr(settings, 'CIRCONUS_TOKEN')
                 if token:
@@ -161,9 +161,7 @@ class IronDBFinder(object):
         at_least_tries = 3
         for i in range(0, max(urls.host_count, at_least_tries)):
             try:
-                headers = copy.deepcopy(self.headers)
-                headers['X-Snowth-Timeout'] = str(self.timeout) + 'ms'
-                names = requests.get(urls.names, params={'query': query.pattern}, headers=headers, timeout=(3.05, (self.timeout / 1000))).json()
+                names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=(3.05, (self.timeout / 1000))).json()
                 break
             except requests.exceptions.RequestException:
                 # on down nodes, try again on another node until we try them all
