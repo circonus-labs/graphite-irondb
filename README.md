@@ -35,6 +35,7 @@ In your graphite's `local_settings.py`:
     IRONDB_BATCH_SIZE = 250
     IRONDB_USE_DATABASE_ROLLUPS = True
     IRONDB_TIMEOUT_MS = 10000
+    IRONDB_CONNECTION_TIMEOUT_MS = 3005
 
 Where `irondb-host` is the DNS or IP of an IronDB node, `port`
 (usually 8112) is the listening port for IronDB, and <account> is some
@@ -87,6 +88,8 @@ in order to group data properly.
 IRONDB_TIMEOUT_MS is optional and will default to 10000.  With IRONdb >= 0.9.8
 this will set an absolute timeout after which queries will be cut off.
 
+IRONDB_CONNECTION_TIMEOUT_MS is optional and will default to 3005.
+
 Changelog
 ---------
 
@@ -96,3 +99,4 @@ Changelog
 * **0.0.4** (2017-06-28): Pass more info back to IRONdb on fetches so the database doesn't have to re-lookup metric ownership among the nodes
 * **0.0.5** (2017-09-01): Retry requests to irondb against different nodes if we encounter connection issues or timeouts on requests
 * **0.0.6** (2017-09-11): Pass a timeout to IRONdb on all fetch operations.  This requires IRONdb >= 0.9.8
+* **0.0.7** (2017-09-13): Use a separate connection timeout on all fetch operations.  

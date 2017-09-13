@@ -43,15 +43,16 @@ urls = None
 urllength = 4096
 
 class IronDBMeasurementFetcher(object):
-    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout')
+    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout')
 
-    def __init__(self, headers, timeout, db_rollups):
+    def __init__(self, headers, timeout, connection_timeout, db_rollups):
         self.leaves = list()
         self.lock = threading.Lock()
         self.fetched = False
         self.results = {}
         self.headers = {}
         self.timeout = timeout
+        self.connection_timeout = connection_timeout
         self.database_rollups = db_rollups
         if headers:
             self.headers = headers
@@ -72,7 +73,7 @@ class IronDBMeasurementFetcher(object):
                 at_least_tries = 3
                 for i in range(0, max(urls.host_count, at_least_tries)):
                     try:
-                        d = requests.post(urls.series_multi, json = params, headers = self.headers, timeout=(3.05, (self.timeout / 1000)))
+                        d = requests.post(urls.series_multi, json = params, headers = self.headers, timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                         self.results = d.json()
                         self.fetched = True
                         break
@@ -116,6 +117,7 @@ class IronDBFinder(object):
         self.batch_size = 250
         self.database_rollups = True
         self.timeout = 10000
+        self.connection_timeout = 3005
         self.headers = {}
         if config is not None:
             if 'urls' in config['irondb']:
@@ -141,6 +143,13 @@ class IronDBFinder(object):
                     self.timeout = int(to)
             except AttributeError:
                 self.timeout = 10000
+            try:
+                cto = getattr(settings, 'IRONDB_CONNECTION_TIMEOUT_MS')
+                if to:
+                    self.connection_timeout = int(cto)
+            except AttributeError:
+                self.connection_timeout = 3005
+
             self.headers['X-Snowth-Timeout'] = str(self.timeout) + 'ms'
             try:
                 token = getattr(settings, 'CIRCONUS_TOKEN')
@@ -161,7 +170,7 @@ class IronDBFinder(object):
         at_least_tries = 3
         for i in range(0, max(urls.host_count, at_least_tries)):
             try:
-                names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=(3.05, (self.timeout / 1000))).json()
+                names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=((self.connection_timeout / 1000), (self.timeout / 1000))).json()
                 break
             except requests.exceptions.RequestException:
                 # on down nodes, try again on another node until we try them all
@@ -170,7 +179,7 @@ class IronDBFinder(object):
         # for each set of self.batch_size leafnodes, execute an IronDBMeasurementFetcher
         # so we can do these in batches.
         counter = 0
-        fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.database_rollups)
+        fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups)
 
         for name in names:
             if name['leaf']:
@@ -178,7 +187,7 @@ class IronDBFinder(object):
                 reader = IronDBReader(name['name'], fetcher)
                 counter = counter + 1
                 if (counter % self.batch_size == 0):
-                    fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.database_rollups)
+                    fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups)
                     counter = 0
                 yield LeafNode(name['name'], reader)
             else:
