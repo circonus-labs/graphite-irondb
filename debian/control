@@ -1,0 +1,36 @@
+Source: graphite-irondb
+Maintainer: Riley Berton <riley.berton@circonus.com>
+Section: python
+Priority: optional
+Build-Depends: python-setuptools (>= 0.6b3), python-all (>= 2.6.6-3), debhelper (>= 7)
+Standards-Version: 3.9.1
+
+
+
+Package: python-graphite-irondb
+Architecture: all
+Depends: ${misc:Depends}, ${python:Depends}
+Description: A storage backend for graphite-web for using IronDB from Cir
+ Graphite-IronDB
+ ================
+ .
+ A plugin for using graphite with the IronDB from Circonus.
+ .
+ Requires Graphite-web 0.10.X.
+ .
+ Graphite-web 0.10.X is currently unreleased. You'll need to install
+ from source.
+ .
+ Installation
+ ------------
+ .
+ ```
+ $ git clone http://github.com/circonus-labs/graphite-irondb
+ $ cd graphite-irondb
+ $ sudo python setup.py install
+ ```
+ .
+ Using with graphite-web
+
+
+
