@@ -111,6 +111,7 @@ class IronDBReader(object):
 
 
 class IronDBFinder(object):
+    __slots__ = ('disabled')
 
     def __init__(self, config=None):
         global urls
@@ -119,6 +120,7 @@ class IronDBFinder(object):
         self.timeout = 10000
         self.connection_timeout = 3005
         self.headers = {}
+        self.disabled = False
         if config is not None:
             if 'urls' in config['irondb']:
                 urls = config['irondb']['urls']
