@@ -117,7 +117,7 @@ class IronDBReader(object):
 
 
 class IronDBFinder(object):
-    __slots__ = ('disabled')
+    __slots__ = ('disabled', 'batch_size', 'database_rollups', 'timeout', 'connection_timeout', 'headers', 'disabled', 'max_retries')
 
     def __init__(self, config=None):
         global urls
