@@ -12,7 +12,13 @@ try:
 except django.core.exceptions.ImproperlyConfigured:
     print "No graphite logger"
 
+import json
 import requests
+
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    JSONDecodeError = ValueError
 
 class URLs(object):
     def __init__(self, hosts):
@@ -80,6 +86,8 @@ class IronDBMeasurementFetcher(object):
                         break
                     except requests.exceptions.ConnectTimeout:
                         # on down nodes, retry on another up to "tries" times
+                        pass
+                    except JSONDecodeError:
                         pass
                     except requests.exceptions.ReadTimeout:
                         # read timeouts are failures, stop immediately
@@ -206,7 +214,7 @@ class IronDBFinder(object):
                 reader = IronDBReader(name['name'], fetcher)
                 counter = counter + 1
                 if (counter % self.batch_size == 0):
-                    fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups)
+                    fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
                     counter = 0
                 yield LeafNode(name['name'], reader)
             else:
