@@ -209,7 +209,7 @@ class IronDBFinder(object):
         fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
 
         for name in names:
-            if name['leaf']:
+            if 'leaf' in name and 'leaf_data' in name:
                 fetcher.add_leaf(name['name'], name['leaf_data'])
                 reader = IronDBReader(name['name'], fetcher)
                 counter = counter + 1
