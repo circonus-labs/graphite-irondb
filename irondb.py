@@ -84,6 +84,9 @@ class IronDBMeasurementFetcher(object):
                         self.results = d.json()
                         self.fetched = True
                         break
+                    except requests.exceptions.ConnectionError:
+                        # on down nodes, retry on another up to "tries" times
+                        pass
                     except requests.exceptions.ConnectTimeout:
                         # on down nodes, retry on another up to "tries" times
                         pass
@@ -196,6 +199,9 @@ class IronDBFinder(object):
             try:
                 names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=((self.connection_timeout / 1000), (self.timeout / 1000))).json()
                 break
+            except requests.exceptions.ConnectionError:
+                # on down nodes, try again on another node until "tries"
+                pass
             except requests.exceptions.ConnectTimeout:
                 # on down nodes, try again on another node until "tries"
                 pass
