@@ -12,7 +12,13 @@ try:
 except django.core.exceptions.ImproperlyConfigured:
     print "No graphite logger"
 
+import json
 import requests
+
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    JSONDecodeError = ValueError
 
 class URLs(object):
     def __init__(self, hosts):
@@ -78,8 +84,13 @@ class IronDBMeasurementFetcher(object):
                         self.results = d.json()
                         self.fetched = True
                         break
+                    except requests.exceptions.ConnectionError:
+                        # on down nodes, retry on another up to "tries" times
+                        pass
                     except requests.exceptions.ConnectTimeout:
                         # on down nodes, retry on another up to "tries" times
+                        pass
+                    except JSONDecodeError:
                         pass
                     except requests.exceptions.ReadTimeout:
                         # read timeouts are failures, stop immediately
@@ -188,6 +199,9 @@ class IronDBFinder(object):
             try:
                 names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=((self.connection_timeout / 1000), (self.timeout / 1000))).json()
                 break
+            except requests.exceptions.ConnectionError:
+                # on down nodes, try again on another node until "tries"
+                pass
             except requests.exceptions.ConnectTimeout:
                 # on down nodes, try again on another node until "tries"
                 pass
@@ -201,12 +215,12 @@ class IronDBFinder(object):
         fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
 
         for name in names:
-            if name['leaf']:
+            if 'leaf' in name and 'leaf_data' in name:
                 fetcher.add_leaf(name['name'], name['leaf_data'])
                 reader = IronDBReader(name['name'], fetcher)
                 counter = counter + 1
                 if (counter % self.batch_size == 0):
-                    fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups)
+                    fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
                     counter = 0
                 yield LeafNode(name['name'], reader)
             else:
