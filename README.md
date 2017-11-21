@@ -106,4 +106,5 @@ Changelog
 * **0.0.6** (2017-09-11): Pass a timeout to IRONdb on all fetch operations.  This requires IRONdb >= 0.9.8
 * **0.0.7** (2017-09-13): Use a separate connection timeout on all fetch operations.
 * **0.0.8** (2017-09-13): Introduce `IRONDB_MAX_RETRIES`
-* **0.0.9** (2017-09-13): API fix for large fetches, reduce errors by catching more connection failure conditions, thanks @cbowman0
+* **0.0.9** (2017-11-13): API fix for large fetches, reduce errors by catching more connection failure conditions, thanks @cbowman0
+* **0.0.10** (2017-11-21): Fix sending of X-Snowth-Timeout header
