@@ -170,7 +170,6 @@ class IronDBFinder(object):
             except AttributeError:
                 self.connection_timeout = 3005
 
-            self.headers['X-Snowth-Timeout'] = str(self.timeout) + 'ms'
             try:
                 token = getattr(settings, 'CIRCONUS_TOKEN')
                 if token:
@@ -178,6 +177,9 @@ class IronDBFinder(object):
                     self.headers['X-Circonus-App-Name'] = 'graphite-web'
             except AttributeError:
                 self.headers = {}
+
+            self.headers['X-Snowth-Timeout'] = str(self.timeout) + 'ms'
+
             try:
                 self.database_rollups = getattr(settings, 'IRONDB_USE_DATABASE_ROLLUPS')
             except AttributeError:
