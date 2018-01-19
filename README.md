@@ -69,7 +69,7 @@ and manually approve it.
 
     CIRCONUS_TOKEN = '<your-token-uuid>'
     IRONDB_URLS = (
-        'https://api.circonus.com/graphite',
+        'https://api.circonus.com/irondb/graphite',
     )
 
 `IRONDB_BATCH_SIZE` is optional and will default to 250.  Batch size is
