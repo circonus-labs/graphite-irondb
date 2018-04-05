@@ -1,5 +1,5 @@
 # coding: utf-8
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='graphite-irondb',
@@ -11,6 +11,7 @@ setup(
     description=('A storage backend for graphite-web for using IronDB from Circonus'),
     long_description=open('README.md').read(),
     py_modules=('irondb',),
+    packages=find_packages(),
     zip_safe=False,
     include_package_data=True,
     platforms='any',
