@@ -3,7 +3,10 @@ import time
 import threading
 import django
 import copy
+import flatbuffers
 
+from metrics.MetricSearchResultList import MetricSearchResultList
+from metrics.MetricGetResult import MetricGetResult
 from graphite.intervals import Interval, IntervalSet
 from graphite.node import LeafNode, BranchNode
 
@@ -19,6 +22,11 @@ try:
     from json.decoder import JSONDecodeError
 except ImportError:
     JSONDecodeError = ValueError
+
+#record types used by irondb in flatbuffer data
+#to determine data type
+GRAPHITE_RECORD_DATA_POINT_TYPE_NULL = 0
+GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE = 1
 
 class URLs(object):
     def __init__(self, hosts):
@@ -47,6 +55,64 @@ class URLs(object):
 
 urls = None
 urllength = 4096
+
+def convert_flatbuffer_metric_find_results(content):
+    try:
+        array = []
+        fb_buf = bytearray(content)
+        root = MetricSearchResultList.GetRootAsMetricSearchResultList(fb_buf, 0)
+        length = root.ResultsLength()
+        for x in range(0, length):
+            result = root.Results(x)
+            entry = {}
+            entry[u"leaf"] = bool(result.Leaf())
+            entry[u"name"] = unicode(result.Name(), "utf-8")
+            if entry[u"leaf"] == True:
+              leaf_dict = {}
+              leaf_data = result.LeafData()
+              leaf_dict[u"uuid"] = unicode(leaf_data.Uuid(), "utf-8")
+              leaf_dict[u"check_name"] = unicode(leaf_data.CheckName(), "utf-8")
+              leaf_dict[u"name"] = unicode(leaf_data.MetricName(), "utf-8")
+              leaf_dict[u"category"] = unicode(leaf_data.Category(), "utf-8")
+              leaf_dict[u"egress_function"] = unicode(leaf_data.EgressFunction(), "utf-8")
+              entry[u"leaf_data"] = leaf_dict
+            array.append(entry)
+        return array
+    except Exception as e:
+        log.info(e)
+    return None
+
+def convert_flatbuffer_metric_get_results(content):
+    try:
+        return_dict = {}
+        fb_buf = bytearray(content)
+        root = MetricGetResult.GetRootAsMetricGetResult(fb_buf, 0)
+        return_dict[u"from"] = root.FromTime()
+        return_dict[u"to"] = root.ToTime()
+        return_dict[u"step"] = root.Step()
+        length = root.SeriesLength()
+        names_dict = {}
+        for x in range(0, length):
+            series = root.Series(x)
+            entry = {}
+            name = unicode(series.Name(), "utf-8")
+            data_length = series.DataLength()
+            data_array = []
+            for y in range(0, data_length):
+                datapoint = series.Data(y)
+                datatype = datapoint.Type()
+                if datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_NULL:
+                    data_array.append(None)
+                elif datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE:
+                    data_array.append(datapoint.Value())
+                else:
+                    data_array.append(None)
+            names_dict[name] = data_array
+        return_dict[u"series"] = names_dict
+        return return_dict
+    except Exception as e:
+        log.info(e)
+    return None
 
 class IronDBMeasurementFetcher(object):
     __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout', 'retries')
@@ -80,9 +146,16 @@ class IronDBMeasurementFetcher(object):
                 tries = self.retries
                 for i in range(0, min(urls.host_count, tries)):
                     try:
+                        self.fetched = False
                         d = requests.post(urls.series_multi, json = params, headers = self.headers, timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
-                        self.results = d.json()
-                        self.fetched = True
+                        if d.headers['content-type'] == 'application/json':
+                            self.results = d.json()
+                            self.fetched = True
+                        elif d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
+                            self.results = convert_flatbuffer_metric_get_results(d.content)
+                            self.fetched = True
+                        else:
+                            pass
                         break
                     except requests.exceptions.ConnectionError:
                         # on down nodes, retry on another up to "tries" times
@@ -197,9 +270,17 @@ class IronDBFinder(object):
     def find_nodes(self, query):
         names = {}
         tries = self.max_retries
+        name_headers = copy.deepcopy(self.headers)
+        name_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
         for i in range(0, min(urls.host_count, tries)):
             try:
-                names = requests.get(urls.names, params={'query': query.pattern}, headers=self.headers, timeout=((self.connection_timeout / 1000), (self.timeout / 1000))).json()
+                r = requests.get(urls.names, params={'query': query.pattern}, headers=name_headers, timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+                if r.headers['content-type'] == 'application/json':
+                    names = r.json()
+                elif r.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
+                    names = convert_flatbuffer_metric_find_results(r.content)
+                else:
+                    pass
                 break
             except requests.exceptions.ConnectionError:
                 # on down nodes, try again on another node until "tries"
@@ -214,7 +295,9 @@ class IronDBFinder(object):
         # for each set of self.batch_size leafnodes, execute an IronDBMeasurementFetcher
         # so we can do these in batches.
         counter = 0
-        fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
+        measurement_headers = copy.deepcopy(self.headers)
+        measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
+        fetcher = IronDBMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
 
         for name in names:
             if 'leaf' in name and 'leaf_data' in name:
