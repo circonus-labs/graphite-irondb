@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='graphite-irondb',
-    version='0.0.10',
+    version='0.0.11',
     url='https://github.com/circonus-labs/graphite-irondb',
     license='BSD',
     author=u'Riley Berton',
