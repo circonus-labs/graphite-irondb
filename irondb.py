@@ -23,6 +23,11 @@ try:
 except ImportError:
     JSONDecodeError = ValueError
 
+#record types used by irondb in flatbuffer data
+#to determine data type
+GRAPHITE_RECORD_DATA_POINT_TYPE_NULL = 0
+GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE = 1
+
 class URLs(object):
     def __init__(self, hosts):
         self.iterator = itertools.cycle(hosts)
@@ -96,10 +101,12 @@ def convert_flatbuffer_metric_get_results(content):
             for y in range(0, data_length):
                 datapoint = series.Data(y)
                 datatype = datapoint.Type()
-                if datatype == 0:
+                if datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_NULL:
                     data_array.append(None)
-                else:
+                elif datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE:
                     data_array.append(datapoint.Value())
+                else:
+                    data_array.append(None)
             names_dict[name] = data_array
         return_dict[u"series"] = names_dict
         return return_dict
