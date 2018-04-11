@@ -56,45 +56,14 @@ class URLs(object):
 urls = None
 urllength = 4096
 
-def convert_flatbuffer_metric_find_results(content):
-    try:
-        array = []
-        fb_buf = bytearray(content)
-        root = MetricSearchResultList.GetRootAsMetricSearchResultList(fb_buf, 0)
-        length = root.ResultsLength()
-        for x in range(0, length):
-            result = root.Results(x)
-            entry = {}
-            entry[u"leaf"] = bool(result.Leaf())
-            entry[u"name"] = unicode(result.Name(), "utf-8")
-            if entry[u"leaf"] == True:
-              leaf_dict = {}
-              leaf_data = result.LeafData()
-              leaf_dict[u"uuid"] = unicode(leaf_data.Uuid(), "utf-8")
-              leaf_dict[u"check_name"] = unicode(leaf_data.CheckName(), "utf-8")
-              leaf_dict[u"name"] = unicode(leaf_data.MetricName(), "utf-8")
-              leaf_dict[u"category"] = unicode(leaf_data.Category(), "utf-8")
-              leaf_dict[u"egress_function"] = unicode(leaf_data.EgressFunction(), "utf-8")
-              entry[u"leaf_data"] = leaf_dict
-            array.append(entry)
-        return array
-    except Exception as e:
-        log.info(e)
-    return None
-
 def convert_flatbuffer_metric_get_results(content):
     try:
-        return_dict = {}
         fb_buf = bytearray(content)
         root = MetricGetResult.GetRootAsMetricGetResult(fb_buf, 0)
-        return_dict[u"from"] = root.FromTime()
-        return_dict[u"to"] = root.ToTime()
-        return_dict[u"step"] = root.Step()
         length = root.SeriesLength()
         names_dict = {}
         for x in range(0, length):
             series = root.Series(x)
-            entry = {}
             name = unicode(series.Name(), "utf-8")
             data_length = series.DataLength()
             data_array = []
@@ -108,14 +77,19 @@ def convert_flatbuffer_metric_get_results(content):
                 else:
                     data_array.append(None)
             names_dict[name] = data_array
-        return_dict[u"series"] = names_dict
+        return_dict = {
+            u"from": root.FromTime(),
+            u"to": root.ToTime(),
+            u"step": root.Step(),
+            u"series": names_dict,
+        }
         return return_dict
     except Exception as e:
         log.info(e)
     return None
 
 class IronDBMeasurementFetcher(object):
-    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout', 'retries')
+    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout', 'retries', 'data_type')
 
     def __init__(self, headers, timeout, connection_timeout, db_rollups, retries):
         self.leaves = list()
@@ -127,6 +101,7 @@ class IronDBMeasurementFetcher(object):
         self.connection_timeout = connection_timeout
         self.database_rollups = db_rollups
         self.retries = retries
+        self.data_type = None
         if headers:
             self.headers = headers
 
@@ -149,9 +124,11 @@ class IronDBMeasurementFetcher(object):
                         self.fetched = False
                         d = requests.post(urls.series_multi, json = params, headers = self.headers, timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                         if d.headers['content-type'] == 'application/json':
+                            self.data_type = "json"
                             self.results = d.json()
                             self.fetched = True
                         elif d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
+                            self.data_type = "fb"
                             self.results = convert_flatbuffer_metric_get_results(d.content)
                             self.fetched = True
                         else:
@@ -172,17 +149,30 @@ class IronDBMeasurementFetcher(object):
             self.lock.release()
             
     def is_error(self):
-        return self.fetched == False or self.results == None or 'error' in self.results or 'series' not in self.results or len(self.results['series']) == 0
+        if self.data_type == "json":
+            return self.fetched == False or self.results == None or 'error' in self.results or 'series' not in self.results or len(self.results['series']) == 0
+        elif self.data_type == "fb":
+            return self.fetched == False or self.results == None or 'error' in self.results or 'series' not in self.results or len(self.results['series']) == 0
 
     def series(self, name):
         if self.is_error():
             return
 
-        time_info = self.results['from'], self.results['to'], self.results['step']
-        if len(self.results['series'].get(name, [])) == 0:
-            return time_info, [None] * ((self.results['to'] - self.results['from']) / self.results['step'])
+        if self.data_type == "json":
+            time_info = self.results['from'], self.results['to'], self.results['step']
+            if len(self.results['series'].get(name, [])) == 0:
+                return time_info, [None] * ((self.results['to'] - self.results['from']) / self.results['step'])
 
-        return time_info, self.results['series'].get(name, [])
+            return time_info, self.results['series'].get(name, [])
+        elif self.data_type == "fb":
+            time_info = self.results['from'], self.results['to'], self.results['step']
+            if len(self.results['series'].get(name, [])) == 0:
+                return time_info, [None] * ((self.results['to'] - self.results['from']) / self.results['step'])
+
+            return time_info, self.results['series'].get(name, [])
+
+        #should not get here
+        return None, None
 
 class IronDBReader(object):
     __slots__ = ('name', 'fetcher',)
@@ -272,13 +262,18 @@ class IronDBFinder(object):
         tries = self.max_retries
         name_headers = copy.deepcopy(self.headers)
         name_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
+        data_type = None
+        data = None
         for i in range(0, min(urls.host_count, tries)):
             try:
+                data = None
                 r = requests.get(urls.names, params={'query': query.pattern}, headers=name_headers, timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                 if r.headers['content-type'] == 'application/json':
-                    names = r.json()
+                    data = r
+                    data_type = "json"
                 elif r.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
-                    names = convert_flatbuffer_metric_find_results(r.content)
+                    data = r
+                    data_type = "fb"
                 else:
                     pass
                 break
@@ -298,15 +293,43 @@ class IronDBFinder(object):
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
         fetcher = IronDBMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
+        if data_type == "json":
+            names = data.json()
+            for name in names:
+                if 'leaf' in name and 'leaf_data' in name:
+                    fetcher.add_leaf(name['name'], name['leaf_data'])
+                    reader = IronDBReader(name['name'], fetcher)
+                    counter = counter + 1
+                    if (counter % self.batch_size == 0):
+                        fetcher = IronDBMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
+                        counter = 0
+                    yield LeafNode(name['name'], reader)
+                else:
+                    yield BranchNode(name['name'])
+        elif data_type == "fb":
+            try:
+                fb_buf = bytearray(data.content)
+                root = MetricSearchResultList.GetRootAsMetricSearchResultList(fb_buf, 0)
+                length = root.ResultsLength()
+                for x in range(0, length):
+                    result = root.Results(x)
+                    if result.Leaf() == True:
+                        leaf_data = result.LeafData()
+                        fetcher.add_leaf(unicode(result.Name(), "utf-8"), {
+                            u"uuid": unicode(leaf_data.Uuid(), "utf-8"),
+                            u"check_name": unicode(leaf_data.CheckName(), "utf-8"),
+                            u"name": unicode(leaf_data.MetricName(), "utf-8"),
+                            u"category": unicode(leaf_data.Category(), "utf-8"),
+                            u"egress_function": unicode(leaf_data.EgressFunction(), "utf-8"),
+                        })
+                        reader = IronDBReader(unicode(result.Name(), "utf-8"), fetcher)
+                        counter = counter + 1
+                        if (counter % self.batch_size == 0):
+                            fetcher = IronDBMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
+                            counter = 0
+                        yield LeafNode(unicode(result.Name(), "utf-8"), reader)
+                    else:
+                        yield BranchNode(unicode(result.Name(), "utf-8"))
+            except Exception as e:
+                log.info(e)
 
-        for name in names:
-            if 'leaf' in name and 'leaf_data' in name:
-                fetcher.add_leaf(name['name'], name['leaf_data'])
-                reader = IronDBReader(name['name'], fetcher)
-                counter = counter + 1
-                if (counter % self.batch_size == 0):
-                    fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
-                    counter = 0
-                yield LeafNode(name['name'], reader)
-            else:
-                yield BranchNode(name['name'])
