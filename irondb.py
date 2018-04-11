@@ -56,40 +56,17 @@ class URLs(object):
 urls = None
 urllength = 4096
 
-def convert_flatbuffer_metric_get_results(content):
-    try:
-        fb_buf = bytearray(content)
-        root = MetricGetResult.GetRootAsMetricGetResult(fb_buf, 0)
-        length = root.SeriesLength()
-        names_dict = {}
-        for x in range(0, length):
-            series = root.Series(x)
-            name = unicode(series.Name(), "utf-8")
-            data_length = series.DataLength()
-            data_array = []
-            for y in range(0, data_length):
-                datapoint = series.Data(y)
-                datatype = datapoint.Type()
-                if datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_NULL:
-                    data_array.append(None)
-                elif datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE:
-                    data_array.append(datapoint.Value())
-                else:
-                    data_array.append(None)
-            names_dict[name] = data_array
-        return_dict = {
-            u"from": root.FromTime(),
-            u"to": root.ToTime(),
-            u"step": root.Step(),
-            u"series": names_dict,
-        }
-        return return_dict
-    except Exception as e:
-        log.info(e)
-    return None
+def get_flatbuffer_names_dict(root):
+    length = root.SeriesLength()
+    names_dict = {}
+    for x in range(0, length):
+        series = root.Series(x)
+        name = unicode(series.Name(), "utf-8")
+        names_dict[name] = True
+    return names_dict
 
 class IronDBMeasurementFetcher(object):
-    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout', 'retries', 'data_type')
+    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout', 'retries', 'data_type', 'fb_names')
 
     def __init__(self, headers, timeout, connection_timeout, db_rollups, retries):
         self.leaves = list()
@@ -102,6 +79,7 @@ class IronDBMeasurementFetcher(object):
         self.database_rollups = db_rollups
         self.retries = retries
         self.data_type = None
+        self.fb_names = None
         if headers:
             self.headers = headers
 
@@ -129,7 +107,9 @@ class IronDBMeasurementFetcher(object):
                             self.fetched = True
                         elif d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
                             self.data_type = "fb"
-                            self.results = convert_flatbuffer_metric_get_results(d.content)
+                            fb_buf = bytearray(d.content)
+                            self.results = MetricGetResult.GetRootAsMetricGetResult(fb_buf, 0)
+                            self.fb_names = get_flatbuffer_names_dict(self.results)
                             self.fetched = True
                         else:
                             pass
@@ -152,7 +132,7 @@ class IronDBMeasurementFetcher(object):
         if self.data_type == "json":
             return self.fetched == False or self.results == None or 'error' in self.results or 'series' not in self.results or len(self.results['series']) == 0
         elif self.data_type == "fb":
-            return self.fetched == False or self.results == None or 'error' in self.results or 'series' not in self.results or len(self.results['series']) == 0
+            return self.fetched == False or self.results == None
 
     def series(self, name):
         if self.is_error():
@@ -165,11 +145,35 @@ class IronDBMeasurementFetcher(object):
 
             return time_info, self.results['series'].get(name, [])
         elif self.data_type == "fb":
-            time_info = self.results['from'], self.results['to'], self.results['step']
-            if len(self.results['series'].get(name, [])) == 0:
-                return time_info, [None] * ((self.results['to'] - self.results['from']) / self.results['step'])
+            time_info = self.results.FromTime(), self.results.ToTime(), self.results.Step()
+            try:
+                if name in self.fb_names:
+                    length = self.results.SeriesLength()
+                    data_array = []
+                    for x in range(0, length):
+                        series = self.results.Series(x)
+                        fb_name = unicode(series.Name(), "utf-8")
+                        if fb_name == name:
+                            data_length = series.DataLength()
+                            for y in range(0, data_length):
+                                datapoint = series.Data(y)
+                                datatype = datapoint.Type()
+                                if datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_NULL:
+                                    data_array.append(None)
+                                elif datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE:
+                                    data_array.append(datapoint.Value())
+                                else:
+                                    data_array.append(None)
+                        return time_info, data_array
+                    return time_info, [None] * ((self.results.ToTime() - self.results.FromTime()) / self.results.Step())
+                else:
+                    return time_info, [None] * ((self.results.ToTime() - self.results.FromTime()) / self.results.Step())
+            except Exception as e:
+                log.info(e)
+                return time_info, [None] * ((self.results.ToTime() - self.results.FromTime()) / self.results.Step())
 
-            return time_info, self.results['series'].get(name, [])
+            #should not get here
+            return None, None
 
         #should not get here
         return None, None
