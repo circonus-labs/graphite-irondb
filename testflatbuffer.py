@@ -1,6 +1,7 @@
 import sys
 import flatbuffers
 import pprint
+import time
 import metrics.MetricSearchResultList as MetricSearchResultList
 import metrics.MetricSearchResult as MetricSearchResult
 import metrics.LeafData as LeafData
@@ -75,6 +76,7 @@ if __name__ == "__main__":
 
         array = []
         fb_buf = bytearray(buf)
+        start_time = time.time()
         root = MetricSearchResultList.MetricSearchResultList.GetRootAsMetricSearchResultList(fb_buf, 0)
         length = root.ResultsLength()
         for x in range(0, length):
@@ -101,6 +103,12 @@ if __name__ == "__main__":
                 }
                 array.append(entry)
 
+        end_time = time.time()
+        total_time = end_time - start_time
+        print("Total Entries Read: " + str(len(array)))
+        print("Total Seconds To Run: " + str(total_time))
+        print("Entries Per Second: " + str(len(array) / total_time))
+        print("Data Read:")
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(array)
 
