@@ -2,7 +2,13 @@
 
 #include "metric_find_verifier.h"
 #include "metric_find_reader.h"
+#include "metric_get_verifier.h"
+#include "metric_get_reader.h"
+
 #define metrics_ns(x) FLATBUFFERS_WRAP_NAMESPACE(metrics, x)
+#define GRAPHITE_RECORD_DATA_POINT_TYPE_NULL    0
+#define GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE  1
+
 #define SET_METRIC_STR(d, m, ns, s) PyDict_SetItem(d, PyUnicode_FromString(#s), PyUnicode_FromString(metrics_ns(ns##_##s(m))))
 
 struct irondb_flatbuf_modstate {
@@ -64,8 +70,74 @@ static PyObject * metric_find_results(PyObject *m, PyObject *args) {
     return array;
 }
 
+static PyObject * metric_get_results(PyObject *m, PyObject *args) {
+    struct irondb_flatbuf_modstate *st = GETSTATE(m);
+    PyObject *content;
+    Py_buffer buffer;
+    if (!PyArg_ParseTuple(args, "O", &content))
+        return NULL;
+    if (PyObject_GetBuffer(content, &buffer, PyBUF_SIMPLE) != 0)
+        return NULL;
+
+    // TODO FIXME
+    /*int ret = metrics_ns(MetricGetResult_verify_as_root(buffer.buf, buffer.len));
+    if (ret != 0) {
+        return PyErr_Format(st->error_type,
+            "Failed to verify MetricGetResult: %s",
+            flatcc_verify_error_string(ret));
+    }*/
+
+    metrics_ns(MetricGetResult_table_t) metric_data = metrics_ns(MetricGetResult_as_root(buffer.buf));
+    PyObject *return_dict = PyDict_New();
+    PyObject *names_dict = PyDict_New();
+
+    PyDict_SetItem(return_dict, PyUnicode_FromString("from"),
+        PyLong_FromLong(metrics_ns(MetricGetResult_from_time(metric_data))));
+    PyDict_SetItem(return_dict, PyUnicode_FromString("to"),
+        PyLong_FromLong(metrics_ns(MetricGetResult_to_time(metric_data))));
+    PyDict_SetItem(return_dict, PyUnicode_FromString("step"),
+        PyLong_FromLong(metrics_ns(MetricGetResult_step(metric_data))));
+
+    metrics_ns(MetricGetSeriesData_vec_t) series_data_vec = metrics_ns(MetricGetResult_series(metric_data));
+    size_t series_data_len = metrics_ns(MetricGetSeriesData_vec_len(series_data_vec));
+
+    for (size_t i = 0; i < series_data_len; i++) {
+        metrics_ns(MetricGetSeriesData_table_t) entry = metrics_ns(MetricGetSeriesData_vec_at(series_data_vec, i));
+        metrics_ns(MetricGetSeriesDataPoint_vec_t) datapoint_vec = metrics_ns(MetricGetSeriesData_data(entry));
+        size_t datapoint_len = metrics_ns(MetricGetSeriesDataPoint_vec_len(datapoint_vec));
+        PyObject *name = PyUnicode_FromString(metrics_ns(MetricGetSeriesData_name(entry)));
+        PyObject *data_array = PyList_New(datapoint_len);
+
+        for (size_t j = 0; j < datapoint_len; j++) {
+            metrics_ns(MetricGetSeriesDataPoint_table_t) datapoint = metrics_ns(MetricGetSeriesDataPoint_vec_at(datapoint_vec, j));
+            int datatype = metrics_ns(MetricGetSeriesDataPoint_type(datapoint));
+            PyObject *py_datapoint;
+
+            if (datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_NULL) {
+                Py_INCREF(Py_None);
+                py_datapoint = Py_None;
+            }
+            else if (datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE) {
+                py_datapoint = PyFloat_FromDouble(metrics_ns(MetricGetSeriesDataPoint_value(datapoint)));
+            }
+            else {
+                // TODO FIXME
+                Py_INCREF(Py_None);
+                py_datapoint = Py_None;
+            }
+            PyList_SET_ITEM(data_array, j, py_datapoint);
+        }
+        PyDict_SetItem(names_dict, name, data_array);
+    }
+    PyDict_SetItem(return_dict, PyUnicode_FromString("series"), names_dict);
+
+    PyBuffer_Release(&buffer);
+    return return_dict;
+}
+
 static PyMethodDef irondb_flatbuf_methods[] = {
     { "metric_find_results", metric_find_results, METH_VARARGS, NULL },
+    { "metric_get_results",  metric_get_results,  METH_VARARGS, NULL },
     { NULL, NULL }
 };
 
