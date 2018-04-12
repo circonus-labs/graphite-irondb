@@ -80,12 +80,12 @@ static PyObject * metric_get_results(PyObject *m, PyObject *args) {
         return NULL;
 
     // TODO FIXME
-    /*int ret = metrics_ns(MetricGetResult_verify_as_root(buffer.buf, buffer.len));
+    int ret = metrics_ns(MetricGetResult_verify_as_root(buffer.buf, buffer.len));
     if (ret != 0) {
         return PyErr_Format(st->error_type,
             "Failed to verify MetricGetResult: %s",
             flatcc_verify_error_string(ret));
-    }*/
+    }
 
     metrics_ns(MetricGetResult_table_t) metric_data = metrics_ns(MetricGetResult_as_root(buffer.buf));
     PyObject *return_dict = PyDict_New();
