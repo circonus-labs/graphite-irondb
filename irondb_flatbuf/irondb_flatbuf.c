@@ -24,19 +24,17 @@ static struct irondb_flatbuf_modstate _state;
 
 static PyObject * metric_find_results(PyObject *m, PyObject *args) {
     struct irondb_flatbuf_modstate *st = GETSTATE(m);
-    PyObject *content;
-    Py_buffer buffer;
-    if (!PyArg_ParseTuple(args, "O", &content))
-        return NULL;
-    if (PyObject_GetBuffer(content, &buffer, PyBUF_SIMPLE) != 0)
+    char *buffer;
+    int buffer_len;
+    if (!PyArg_ParseTuple(args, "s#", &buffer, &buffer_len))
         return NULL;
     // TODO FIXME
     // Copy data for memory alignment for flatcc
     // Python data is not memory aligned!
-    char *aligned_buffer = (char *)malloc(buffer.len);
-    memcpy(aligned_buffer, buffer.buf, buffer.len);
+    char *aligned_buffer = (char *)malloc(buffer_len);
+    memcpy(aligned_buffer, buffer, buffer_len);
 
-    int ret = metrics_ns(MetricSearchResultList_verify_as_root(aligned_buffer, buffer.len));
+    int ret = metrics_ns(MetricSearchResultList_verify_as_root(aligned_buffer, buffer_len));
     if (ret != 0) {
         return PyErr_Format(st->error_type,
             "Failed to verify MetricSearchResultList: %s",
@@ -72,25 +70,22 @@ static PyObject * metric_find_results(PyObject *m, PyObject *args) {
         PyList_SET_ITEM(array, i, entry);
     }
     free(aligned_buffer);
-    PyBuffer_Release(&buffer);
     return array;
 }
 
 static PyObject * metric_get_results(PyObject *m, PyObject *args) {
     struct irondb_flatbuf_modstate *st = GETSTATE(m);
-    PyObject *content;
-    Py_buffer buffer;
-    if (!PyArg_ParseTuple(args, "O", &content))
-        return NULL;
-    if (PyObject_GetBuffer(content, &buffer, PyBUF_SIMPLE) != 0)
+    char *buffer;
+    int buffer_len;
+    if (!PyArg_ParseTuple(args, "s#", &buffer, &buffer_len))
         return NULL;
     // TODO FIXME
     // Copy data for memory alignment for flatcc
     // Python data is not memory aligned!
-    char *aligned_buffer = (char *)malloc(buffer.len);
-    memcpy(aligned_buffer, buffer.buf, buffer.len);
+    char *aligned_buffer = (char *)malloc(buffer_len);
+    memcpy(aligned_buffer, buffer, buffer_len);
 
-    int ret = metrics_ns(MetricGetResult_verify_as_root(aligned_buffer, buffer.len));
+    int ret = metrics_ns(MetricGetResult_verify_as_root(aligned_buffer, buffer_len));
     if (ret != 0) {
         return PyErr_Format(st->error_type,
             "Failed to verify MetricGetResult: %s",
@@ -142,7 +137,6 @@ static PyObject * metric_get_results(PyObject *m, PyObject *args) {
     PyDict_SetItem(return_dict, PyUnicode_FromString("series"), names_dict);
 
     free(aligned_buffer);
-    PyBuffer_Release(&buffer);
     return return_dict;
 }
 
