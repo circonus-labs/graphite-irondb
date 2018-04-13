@@ -30,15 +30,20 @@ static PyObject * metric_find_results(PyObject *m, PyObject *args) {
         return NULL;
     if (PyObject_GetBuffer(content, &buffer, PyBUF_SIMPLE) != 0)
         return NULL;
+    // TODO FIXME
+    // Copy data for memory alignment for flatcc
+    // Python data is not memory aligned!
+    char *aligned_buffer = (char *)malloc(buffer.len);
+    memcpy(aligned_buffer, buffer.buf, buffer.len);
 
-    int ret = metrics_ns(MetricSearchResultList_verify_as_root(buffer.buf, buffer.len));
+    int ret = metrics_ns(MetricSearchResultList_verify_as_root(aligned_buffer, buffer.len));
     if (ret != 0) {
         return PyErr_Format(st->error_type,
             "Failed to verify MetricSearchResultList: %s",
             flatcc_verify_error_string(ret));
     }
 
-    metrics_ns(MetricSearchResultList_table_t) metric_list = metrics_ns(MetricSearchResultList_as_root(buffer.buf));
+    metrics_ns(MetricSearchResultList_table_t) metric_list = metrics_ns(MetricSearchResultList_as_root(aligned_buffer));
     metrics_ns(MetricSearchResult_vec_t) vec = metrics_ns(MetricSearchResultList_results(metric_list));
     size_t num_results = metrics_ns(MetricSearchResult_vec_len(vec));
 
@@ -66,6 +71,7 @@ static PyObject * metric_find_results(PyObject *m, PyObject *args) {
         }
         PyList_SET_ITEM(array, i, entry);
     }
+    free(aligned_buffer);
     PyBuffer_Release(&buffer);
     return array;
 }
@@ -78,16 +84,20 @@ static PyObject * metric_get_results(PyObject *m, PyObject *args) {
         return NULL;
     if (PyObject_GetBuffer(content, &buffer, PyBUF_SIMPLE) != 0)
         return NULL;
-
     // TODO FIXME
-    int ret = metrics_ns(MetricGetResult_verify_as_root(buffer.buf, buffer.len));
+    // Copy data for memory alignment for flatcc
+    // Python data is not memory aligned!
+    char *aligned_buffer = (char *)malloc(buffer.len);
+    memcpy(aligned_buffer, buffer.buf, buffer.len);
+
+    int ret = metrics_ns(MetricGetResult_verify_as_root(aligned_buffer, buffer.len));
     if (ret != 0) {
         return PyErr_Format(st->error_type,
             "Failed to verify MetricGetResult: %s",
             flatcc_verify_error_string(ret));
     }
 
-    metrics_ns(MetricGetResult_table_t) metric_data = metrics_ns(MetricGetResult_as_root(buffer.buf));
+    metrics_ns(MetricGetResult_table_t) metric_data = metrics_ns(MetricGetResult_as_root(aligned_buffer));
     PyObject *return_dict = PyDict_New();
     PyObject *names_dict = PyDict_New();
 
@@ -131,6 +141,7 @@ static PyObject * metric_get_results(PyObject *m, PyObject *args) {
     }
     PyDict_SetItem(return_dict, PyUnicode_FromString("series"), names_dict);
 
+    free(aligned_buffer);
     PyBuffer_Release(&buffer);
     return return_dict;
 }
