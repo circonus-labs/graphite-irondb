@@ -5,6 +5,7 @@ import django
 import copy
 import flatbuffers
 
+import irondb_flatbuf
 from metrics.MetricSearchResultList import MetricSearchResultList
 from metrics.MetricGetResult import MetricGetResult
 from graphite.intervals import Interval, IntervalSet
@@ -152,7 +153,7 @@ class IronDBMeasurementFetcher(object):
                             self.results = d.json()
                             self.fetched = True
                         elif d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
-                            self.results = convert_flatbuffer_metric_get_results(d.content)
+                            self.results = irondb_flatbuf.metric_get_results(d.content)
                             self.fetched = True
                         else:
                             pass
@@ -278,7 +279,7 @@ class IronDBFinder(object):
                 if r.headers['content-type'] == 'application/json':
                     names = r.json()
                 elif r.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
-                    names = convert_flatbuffer_metric_find_results(r.content)
+                    names = irondb_flatbuf.metric_find_results(r.content)
                 else:
                     pass
                 break
