@@ -8,6 +8,7 @@ import metrics.LeafData as LeafData
 import metrics.MetricGetResult as MetricGetResult
 import metrics.MetricGetSeriesData as MetricGetSeriesData
 import metrics.MetricGetSeriesDataPoint as MetricGetSeriesDataPoint
+import irondb_flatbuf
 
 from irondb import IronDBFinder, IronDBReader, IronDBMeasurementFetcher
 
@@ -140,37 +141,11 @@ if __name__ == "__main__":
 
         print("Read data from " + filename)
 
-        array = []
-        fb_buf = bytearray(buf)
         start_time = time.time()
-        root = MetricSearchResultList.MetricSearchResultList.GetRootAsMetricSearchResultList(fb_buf, 0)
-        length = root.ResultsLength()
-        for x in range(0, length):
-            result = root.Results(x)
-            if bool(result.Leaf()) == True:
-                leaf_data = result.LeafData()
-                leaf_dict = {
-                    u"uuid": unicode(leaf_data.Uuid(), "utf-8"),
-                    u"check_name": unicode(leaf_data.CheckName(), "utf-8"),
-                    u"name": unicode(leaf_data.MetricName(), "utf-8"),
-                    u"category": unicode(leaf_data.Category(), "utf-8"),
-                    u"egress_function": unicode(leaf_data.EgressFunction(), "utf-8"),
-                }
-                entry = {
-                    u"leaf": bool(result.Leaf()),
-                    u"name": unicode(result.Name(), "utf-8"),
-                    u"leaf_data": leaf_dict,
-                }
-                array.append(entry)
-            else:
-                entry = {
-                    u"leaf": bool(result.Leaf()),
-                    u"name": unicode(result.Name(), "utf-8"),
-                }
-                array.append(entry)
-
+        array = irondb_flatbuf.metric_find_results(buf)
         end_time = time.time()
         total_time = end_time - start_time
+
         print("Total Entries Read: " + str(len(array)))
         print("Total Seconds To Run: " + str(total_time))
         print("Entries Per Second: " + str(len(array) / total_time))
@@ -185,35 +160,11 @@ if __name__ == "__main__":
 
         print("Read data from " + filename)
 
-        datadict = {}
-        fb_buf = bytearray(buf)
         start_time = time.time()
-        root = MetricGetResult.MetricGetResult.GetRootAsMetricGetResult(fb_buf, 0)
-        datadict[u"from"] = root.FromTime()
-        datadict[u"to"] = root.ToTime()
-        datadict[u"step"] = root.Step()
-        length = root.SeriesLength()
-        names_dict = {}
-        for x in range(0, length):
-            series = root.Series(x)
-            entry = {}
-            name = unicode(series.Name(), "utf-8")
-            data_length = series.DataLength()
-            data_array = []
-            for y in range(0, data_length):
-                datapoint = series.Data(y)
-                datatype = datapoint.Type()
-                if datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_NULL:
-                    data_array.append(None)
-                elif datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE:
-                    data_array.append(datapoint.Value())
-                else:
-                    data_array.append(None)
-            names_dict[name] = data_array
-        datadict[u"series"] = names_dict
-
+        datadict = irondb_flatbuf.metric_get_results(buf)
         end_time = time.time()
         total_time = end_time - start_time
+
         print("Total Entries Read: " + str(len(datadict[u"series"])))
         print("Total Seconds To Run: " + str(total_time))
         print("Entries Per Second: " + str(len(datadict[u"series"]) / total_time))
