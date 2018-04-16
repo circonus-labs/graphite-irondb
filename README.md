@@ -11,10 +11,20 @@ from source.
 Installation
 ------------
 
+First checkout the code:
 ```
 $ git clone http://github.com/circonus-labs/graphite-irondb
 $ cd graphite-irondb
-$ sudo python setup.py install
+```
+(With no options provided, the install defaults to using the `flatcc` provided by Circonus)
+
+Then to install using `flatcc` library for FlatBuffers:
+```
+$ sudo python setup.py install --with-flatcc=PREFIX
+```
+Or to install as pure Python:
+```
+$ sudo python setup.py install --pure-python
 ```
 
 Using with graphite-web
