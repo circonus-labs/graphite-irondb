@@ -120,3 +120,4 @@ Changelog
 * **0.0.9** (2017-11-13): API fix for large fetches, reduce errors by catching more connection failure conditions, thanks @cbowman0
 * **0.0.10** (2017-11-21): Fix sending of X-Snowth-Timeout header
 * **0.0.11** (2018-04-09): Allow handling Flatbuffer data coming from IRONdb
+* **0.0.12** (2018-04-16): Performance improvements to Flatbuffer via native C modules instead of native Python. Requires flatcc
