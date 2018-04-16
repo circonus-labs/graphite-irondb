@@ -242,7 +242,7 @@ class IronDBFinder(object):
                 reader = IronDBReader(name['name'], fetcher)
                 counter = counter + 1
                 if (counter % self.batch_size == 0):
-                    fetcher = IronDBMeasurementFetcher(self.headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
+                    fetcher = IronDBMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
                     counter = 0
                 yield LeafNode(name['name'], reader)
             else:
