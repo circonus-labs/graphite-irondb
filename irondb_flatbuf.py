@@ -13,7 +13,7 @@ except django.core.exceptions.ImproperlyConfigured:
 GRAPHITE_RECORD_DATA_POINT_TYPE_NULL = 0
 GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE = 1
 
-def convert_flatbuffer_metric_find_results(content):
+def metric_find_results(content):
     try:
         array = []
         fb_buf = bytearray(content)
@@ -39,7 +39,7 @@ def convert_flatbuffer_metric_find_results(content):
         log.info(e)
     return None
 
-def convert_flatbuffer_metric_get_results(content):
+def metric_get_results(content):
     try:
         return_dict = {}
         fb_buf = bytearray(content)
