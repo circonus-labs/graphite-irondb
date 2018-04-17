@@ -9,7 +9,19 @@
 #define GRAPHITE_RECORD_DATA_POINT_TYPE_NULL    0
 #define GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE  1
 
-#define SET_METRIC_STR(d, m, ns, s) PyDict_SetItem(d, PyUnicode_FromString(#s), PyUnicode_FromString(metrics_ns(ns##_##s(m))))
+#define _FB_METRIC(m, ns, s)                    metrics_ns(ns##_##s(m))
+#define SET_METRIC_BOOL(d, m, ns, s)            _pydict_set(d, #s, PyBool_FromLong(_FB_METRIC(m, ns, s)))
+#define SET_METRIC_LONG_ALT(d, alt_s, m, ns, s) _pydict_set(d, #alt_s, PyLong_FromLong(_FB_METRIC(m, ns, s)))
+#define SET_METRIC_LONG(d, m, ns, s)            SET_METRIC_LONG_ALT(d, s, m, ns, s)
+#define SET_METRIC_STR_ALT(d, alt_s, m, ns, s)  _pydict_set(d, #alt_s, PyUnicode_FromString(_FB_METRIC(m, ns, s)))
+#define SET_METRIC_STR(d, m, ns, s)             SET_METRIC_STR_ALT(d, s, m, ns, s)
+
+static void _pydict_set(PyObject *dict, const char *strkey, PyObject *pyval) {
+    PyObject *pykey = PyUnicode_FromString(strkey);
+    PyDict_SetItem(dict, pykey, pyval);
+    Py_DECREF(pykey);
+    Py_DECREF(pyval);
+}
 
 struct irondb_flatcc_modstate {
     PyObject *error_type;
@@ -22,7 +34,7 @@ struct irondb_flatcc_modstate {
 static struct irondb_flatcc_modstate _state;
 #endif
 
-static PyObject * metric_find_results(PyObject *m, PyObject *args) {
+static PyObject * irondb_flatcc_metric_find_results(PyObject *m, PyObject *args) {
     struct irondb_flatcc_modstate *st = GETSTATE(m);
     char *buffer;
     int buffer_len;
@@ -36,6 +48,7 @@ static PyObject * metric_find_results(PyObject *m, PyObject *args) {
 
     int ret = metrics_ns(MetricSearchResultList_verify_as_root(aligned_buffer, buffer_len));
     if (ret != 0) {
+        free(aligned_buffer);
         return PyErr_Format(st->error_type,
             "Failed to verify MetricSearchResultList: %s",
             flatcc_verify_error_string(ret));
@@ -50,22 +63,19 @@ static PyObject * metric_find_results(PyObject *m, PyObject *args) {
         metrics_ns(MetricSearchResult_table_t) m = metrics_ns(MetricSearchResult_vec_at(vec, i));
         PyObject *entry = PyDict_New();
         SET_METRIC_STR(entry, m, MetricSearchResult, name);
+        SET_METRIC_BOOL(entry, m, MetricSearchResult, leaf);
 
-        int leaf = metrics_ns(MetricSearchResult_leaf(m));
-        PyDict_SetItem(entry, PyUnicode_FromString("leaf"), PyBool_FromLong(leaf));
-
-        if (leaf && metrics_ns(MetricSearchResult_leaf_data_is_present(m))) {
+        if (metrics_ns(MetricSearchResult_leaf(m)) && metrics_ns(MetricSearchResult_leaf_data_is_present(m))) {
             metrics_ns(LeafData_table_t) ld = metrics_ns(MetricSearchResult_leaf_data(m));
             PyObject *leaf_dict = PyDict_New();
 
             SET_METRIC_STR(leaf_dict, ld, LeafData, uuid);
             SET_METRIC_STR(leaf_dict, ld, LeafData, check_name);
-            PyDict_SetItem(leaf_dict, PyUnicode_FromString("name"),
-                PyUnicode_FromString(metrics_ns(LeafData_metric_name(ld))));
+            SET_METRIC_STR_ALT(leaf_dict, name, ld, LeafData, metric_name);
             SET_METRIC_STR(leaf_dict, ld, LeafData, category);
             SET_METRIC_STR(leaf_dict, ld, LeafData, egress_function);
 
-            PyDict_SetItem(entry, PyUnicode_FromString("leaf_data"), leaf_dict);
+            _pydict_set(entry, "leaf_data", leaf_dict);
         }
         PyList_SET_ITEM(array, i, entry);
     }
@@ -73,7 +83,7 @@ static PyObject * metric_find_results(PyObject *m, PyObject *args) {
     return array;
 }
 
-static PyObject * metric_get_results(PyObject *m, PyObject *args) {
+static PyObject * irondb_flatcc_metric_get_results(PyObject *m, PyObject *args) {
     struct irondb_flatcc_modstate *st = GETSTATE(m);
     char *buffer;
     int buffer_len;
@@ -87,6 +97,7 @@ static PyObject * metric_get_results(PyObject *m, PyObject *args) {
 
     int ret = metrics_ns(MetricGetResult_verify_as_root(aligned_buffer, buffer_len));
     if (ret != 0) {
+        free(aligned_buffer);
         return PyErr_Format(st->error_type,
             "Failed to verify MetricGetResult: %s",
             flatcc_verify_error_string(ret));
@@ -96,12 +107,9 @@ static PyObject * metric_get_results(PyObject *m, PyObject *args) {
     PyObject *return_dict = PyDict_New();
     PyObject *names_dict = PyDict_New();
 
-    PyDict_SetItem(return_dict, PyUnicode_FromString("from"),
-        PyLong_FromLong(metrics_ns(MetricGetResult_from_time(metric_data))));
-    PyDict_SetItem(return_dict, PyUnicode_FromString("to"),
-        PyLong_FromLong(metrics_ns(MetricGetResult_to_time(metric_data))));
-    PyDict_SetItem(return_dict, PyUnicode_FromString("step"),
-        PyLong_FromLong(metrics_ns(MetricGetResult_step(metric_data))));
+    SET_METRIC_LONG_ALT(return_dict, from, metric_data, MetricGetResult, from_time);
+    SET_METRIC_LONG_ALT(return_dict, to, metric_data, MetricGetResult, to_time);
+    SET_METRIC_LONG(return_dict, metric_data, MetricGetResult, step);
 
     metrics_ns(MetricGetSeriesData_vec_t) series_data_vec = metrics_ns(MetricGetResult_series(metric_data));
     size_t series_data_len = metrics_ns(MetricGetSeriesData_vec_len(series_data_vec));
@@ -110,7 +118,7 @@ static PyObject * metric_get_results(PyObject *m, PyObject *args) {
         metrics_ns(MetricGetSeriesData_table_t) entry = metrics_ns(MetricGetSeriesData_vec_at(series_data_vec, i));
         metrics_ns(MetricGetSeriesDataPoint_vec_t) datapoint_vec = metrics_ns(MetricGetSeriesData_data(entry));
         size_t datapoint_len = metrics_ns(MetricGetSeriesDataPoint_vec_len(datapoint_vec));
-        PyObject *name = PyUnicode_FromString(metrics_ns(MetricGetSeriesData_name(entry)));
+        const char *name = metrics_ns(MetricGetSeriesData_name(entry));
         PyObject *data_array = PyList_New(datapoint_len);
 
         for (size_t j = 0; j < datapoint_len; j++) {
@@ -132,17 +140,17 @@ static PyObject * metric_get_results(PyObject *m, PyObject *args) {
             }
             PyList_SET_ITEM(data_array, j, py_datapoint);
         }
-        PyDict_SetItem(names_dict, name, data_array);
+        _pydict_set(names_dict, name, data_array);
     }
-    PyDict_SetItem(return_dict, PyUnicode_FromString("series"), names_dict);
+    _pydict_set(return_dict, "series", names_dict);
 
     free(aligned_buffer);
     return return_dict;
 }
 
 static PyMethodDef irondb_flatcc_methods[] = {
-    { "metric_find_results", metric_find_results, METH_VARARGS, NULL },
-    { "metric_get_results",  metric_get_results,  METH_VARARGS, NULL },
+    { "metric_find_results", irondb_flatcc_metric_find_results, METH_VARARGS, NULL },
+    { "metric_get_results",  irondb_flatcc_metric_get_results,  METH_VARARGS, NULL },
     { NULL, NULL }
 };
 
