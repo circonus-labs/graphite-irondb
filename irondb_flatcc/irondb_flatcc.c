@@ -5,6 +5,8 @@
 #include "metric_get_verifier.h"
 #include "metric_get_reader.h"
 
+#include <math.h>
+
 #define metrics_ns(x) FLATBUFFERS_WRAP_NAMESPACE(metrics, x)
 #define GRAPHITE_RECORD_DATA_POINT_TYPE_NULL    0
 #define GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE  1
@@ -131,7 +133,10 @@ static PyObject * irondb_flatcc_metric_get_results(PyObject *m, PyObject *args) 
                 py_datapoint = Py_None;
             }
             else if (datatype == GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE) {
-                py_datapoint = PyFloat_FromDouble(metrics_ns(MetricGetSeriesDataPoint_value(datapoint)));
+                double x = metrics_ns(MetricGetSeriesDataPoint_value(datapoint));
+                /* 5 sigdigs */
+                x = roundf(x * 10000) / 10000;
+                py_datapoint = PyFloat_FromDouble(x);
             }
             else {
                 // TODO FIXME
