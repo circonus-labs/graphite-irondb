@@ -21,7 +21,7 @@ def build_ext(argv, setup_args):
         setup_args['ext_modules']=[Extension(
             'irondb_flatcc',
             sources=['irondb_flatcc/irondb_flatcc.c'],
-            extra_compile_args=['-I%s/include'%with_flatcc,'-fPIC','-O5','-Wno-strict-prototypes'],
+            extra_compile_args=['-I%s/include'%with_flatcc,'-std=c99','-fPIC','-O5','-Wno-strict-prototypes'],
             extra_link_args=['-L%s/lib'%with_flatcc,'-Wl,-rpath=%s/lib'%with_flatcc,'-lflatccrt']
         )]
 
