@@ -14,7 +14,8 @@ script:
   - mkdir dist  
   - cd dist
   - git clone https://github.com/dvidelabs/flatcc
-  - cmake flatcc \
+  - |
+    cmake flatcc \
     -DBUILD_SHARED_LIBS=on \
     -DCMAKE_BUILD_TYPE=Release \
     -DFLATCC_RTONLY=on \
