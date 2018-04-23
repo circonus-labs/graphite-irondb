@@ -1,7 +1,7 @@
-Graphite-IronDB
+Graphite-IRONdb
 ================
 
-A plugin for using graphite with the IronDB from Circonus.
+A plugin for using graphite with the IRONdb from Circonus.
 
 Requires Graphite-web 0.10.X.
 
@@ -49,18 +49,18 @@ In your graphite's `local_settings.py`:
     IRONDB_CONNECTION_TIMEOUT_MS = 3005
     IRONDB_MAX_RETRIES = 2
 
-Where `irondb-host` is the DNS or IP of an IronDB node, `port`
-(usually 8112) is the listening port for IronDB, and <account> is some
+Where `irondb-host` is the DNS or IP of an IRONdb node, `port`
+(usually 8112) is the listening port for IRONdb, and <account> is some
 integer you have been ingesting your metrics under (see Namespacing in
-the IronDB docs).  `optional_query_prefix` can be used to prefix all
+the IRONdb docs).  `optional_query_prefix` can be used to prefix all
 operations with a fixed name.  You can use this optional prefix to
 simplify metric names stored in IRONdb.  If you just want raw names
 as stored in IRONdb, you can omit this last URL section (see
 Graphite Rendering in the IRONdb documentation).
 
-If you have a multi-node IronDB installation (likely), you should
+If you have a multi-node IRONdb installation (likely), you should
 specify multiple URLS (one for each node in the cluster), or place the
-IronDB installation behind a load balancer.  For example,
+IRONdb installation behind a load balancer.  For example,
 
     IRONDB_URLS = (
         'http://host1:8112/graphite/1',
@@ -84,7 +84,7 @@ and manually approve it.
     )
 
 `IRONDB_BATCH_SIZE` is optional and will default to 250.  Batch size is
-used to perform multi-fetch from the IronDB backend if you use graphs
+used to perform multi-fetch from the IRONdb backend if you use graphs
 with wildcard expansions in the datapoints.
 
 `IRONDB_USE_DATABASE_ROLLUPS` is optional python boolean (True|False)
@@ -113,7 +113,7 @@ Changelog
 * **0.0.2** (2017-05-25): fix queries where there is no data for one or more of the requested time series
 * **0.0.3** (2017-06-27): Add `CIRCONUS_TOKEN` support and `IRONDB_USE_DATABASE_ROLLUPS`
 * **0.0.4** (2017-06-28): Pass more info back to IRONdb on fetches so the database doesn't have to re-lookup metric ownership among the nodes
-* **0.0.5** (2017-09-01): Retry requests to irondb against different nodes if we encounter connection issues or timeouts on requests
+* **0.0.5** (2017-09-01): Retry requests to IRONdb against different nodes if we encounter connection issues or timeouts on requests
 * **0.0.6** (2017-09-11): Pass a timeout to IRONdb on all fetch operations.  This requires IRONdb >= 0.9.8
 * **0.0.7** (2017-09-13): Use a separate connection timeout on all fetch operations.
 * **0.0.8** (2017-09-13): Introduce `IRONDB_MAX_RETRIES`
