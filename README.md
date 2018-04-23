@@ -1,6 +1,8 @@
 Graphite-IRONdb
 ================
 
+[![Build Status](https://travis-ci.org/circonus-labs/graphite-irondb.svg?branch=master)](https://travis-ci.org/circonus-labs/graphite-irondb)
+
 A plugin for using graphite with the IRONdb from Circonus.
 
 Requires Graphite-web 0.10.X.
