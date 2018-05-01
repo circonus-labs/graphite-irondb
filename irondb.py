@@ -11,6 +11,10 @@ except ImportError:
 
 from graphite.intervals import Interval, IntervalSet
 from graphite.node import LeafNode, BranchNode
+try:
+    from graphite.finders.utils import BaseFinder
+except ImportError:
+    BaseFinder = object
 
 
 import json
@@ -137,7 +141,7 @@ class IronDBReader(object):
         return IntervalSet([Interval(0, int(time.time()))])
 
 
-class IronDBFinder(object):
+class IronDBFinder(BaseFinder):
     __slots__ = ('disabled', 'batch_size', 'database_rollups', 'timeout', 'connection_timeout', 'headers', 'disabled', 'max_retries')
 
     def __init__(self, config=None):
