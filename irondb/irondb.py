@@ -5,9 +5,9 @@ import django
 import copy
 
 try:
-    import irondb_flatcc as irondb_flatbuf
+    import flatcc as irondb_flatbuf
 except ImportError:
-    import irondb_flatbuf
+    import flatbuf as irondb_flatbuf
 
 from graphite.intervals import Interval, IntervalSet
 from graphite.node import LeafNode, BranchNode

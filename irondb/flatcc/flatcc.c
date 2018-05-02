@@ -174,7 +174,7 @@ static int irondb_flatcc_clear(PyObject *m) {
 
 static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
-    "irondb_flatcc",
+    "irondb.flatcc",
     NULL,
     sizeof(struct irondb_flatcc_modstate),
     irondb_flatcc_methods,
@@ -199,14 +199,14 @@ initirondb_flatcc(void)
 #if PY_MAJOR_VERSION >= 3
     PyObject *module = PyModule_Create(&moduledef);
 #else
-    PyObject *module = Py_InitModule("irondb_flatcc", irondb_flatcc_methods);
+    PyObject *module = Py_InitModule("irondb.flatcc", irondb_flatcc_methods);
 #endif
 
     if (module == NULL)
         INITERROR;
     struct irondb_flatcc_modstate *st = GETSTATE(module);
 
-    st->error_type = PyErr_NewException("irondb_flatcc.Error", NULL, NULL);
+    st->error_type = PyErr_NewException("irondb.flatcc.Error", NULL, NULL);
     if (st->error_type == NULL) {
         Py_DECREF(module);
         INITERROR;

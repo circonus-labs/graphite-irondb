@@ -19,8 +19,8 @@ def build_ext(argv, setup_args):
             break
     if not pure_python:
         setup_args['ext_modules']=[Extension(
-            'irondb_flatcc',
-            sources=['irondb_flatcc/irondb_flatcc.c'],
+            'irondb.flatcc',
+            sources=['irondb/flatcc/flatcc.c'],
             extra_compile_args=['-I%s/include'%with_flatcc,'-std=c99','-fPIC','-O5','-Wno-strict-prototypes'],
             extra_link_args=['-L%s/lib'%with_flatcc,'-Wl,-rpath=%s/lib'%with_flatcc,'-lflatccrt']
         )]
@@ -34,10 +34,8 @@ setup_args=dict(
     author_email='riley.berton@circonus.com',
     description=('A storage backend for graphite-web for using IRONdb from Circonus'),
     long_description=open('README.md').read(),
-    py_modules=('irondb','irondb_flatbuf'),
     packages=find_packages(),
     zip_safe=False,
-    include_package_data=True,
     platforms='any',
     classifiers=(
         'Intended Audience :: Developers',
