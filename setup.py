@@ -47,7 +47,7 @@ setup_args=dict(
         'Topic :: System :: Monitoring',
     ),
     install_requires=(
-        'requests',
+        'requests','physiq-flatbuffers'
     )
 )
 
