@@ -2,13 +2,13 @@ import sys
 import flatbuffers
 import pprint
 import time
-import metrics.MetricSearchResultList as MetricSearchResultList
-import metrics.MetricSearchResult as MetricSearchResult
-import metrics.LeafData as LeafData
-import metrics.MetricGetResult as MetricGetResult
-import metrics.MetricGetSeriesData as MetricGetSeriesData
-import metrics.MetricGetSeriesDataPoint as MetricGetSeriesDataPoint
-import irondb_flatbuf
+import irondb.metrics.MetricSearchResultList as MetricSearchResultList
+import irondb.metrics.MetricSearchResult as MetricSearchResult
+import irondb.metrics.LeafData as LeafData
+import irondb.metrics.MetricGetResult as MetricGetResult
+import irondb.metrics.MetricGetSeriesData as MetricGetSeriesData
+import irondb.metrics.MetricGetSeriesDataPoint as MetricGetSeriesDataPoint
+import irondb.flatbuf as irondb_flatbuf
 
 from irondb import IronDBFinder, IronDBReader, IronDBMeasurementFetcher
 
