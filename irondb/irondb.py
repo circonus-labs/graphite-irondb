@@ -21,6 +21,7 @@ except ImportError:
 
 import json
 import requests
+from django.conf import settings
 
 try:
     from json.decoder import JSONDecodeError
@@ -92,14 +93,12 @@ class IronDBMeasurementFetcher(object):
                         self.fetched = False
                         d = requests.post(urls.series_multi, json = params, headers = self.headers,
                                           timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
-                        if not 'content-type' in d.headers or d.headers['content-type'] == 'application/json':
-                            self.results = d.json()
-                            self.fetched = True
-                        elif d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
+                        if 'content-type' in d.headers and d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
                             self.results = irondb_flatbuf.metric_get_results(d.content)
                             self.fetched = True
                         else:
-                            pass
+                            self.results = d.json()
+                            self.fetched = True
                         break
                     except requests.exceptions.ConnectionError:
                         # on down nodes, retry on another up to "tries" times
@@ -112,8 +111,8 @@ class IronDBMeasurementFetcher(object):
                     except requests.exceptions.ReadTimeout:
                         # read timeouts are failures, stop immediately
                         break
-
-            log.debug("IRONdbMeasurementFetcher.fetch results: %s" % json.dumps(self.results))
+            if settings.DEBUG:
+                log.debug("IRONdbMeasurementFetcher.fetch results: %s" % json.dumps(self.results))
             self.lock.release()
             
     def is_error(self):
@@ -235,16 +234,17 @@ class IronDBFinder(BaseFinder):
                     break
                 except requests.exceptions.ConnectionError:
                     # on down nodes, try again on another node until "tries"
-                    pass
+                    log.debug("IRONdbFinder.fetch ConnectionError")
                 except requests.exceptions.ConnectTimeout:
                     # on down nodes, try again on another node until "tries"
-                    pass
+                    log.debug("IRONdbFinder.fetch ConnectTimeout")
                 except requests.exceptions.ReadTimeout:
                     # up node that simply timed out is a failure
+                    log.debug("IRONdbFinder.fetch ReadTimeout")
                     break
-                
+
             all_names[pattern] = names
-        
+
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
         fetcher = IronDBMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
@@ -261,7 +261,7 @@ class IronDBFinder(BaseFinder):
                 res = fetcher.series(name['name'])
                 if res is None:
                     continue
-                
+
                 time_info, values = res
                 results.append({
                     'pathExpression': pattern,
@@ -272,16 +272,16 @@ class IronDBFinder(BaseFinder):
                 })
         return results
 
-    
+
 
     #future work
     def auto_complete_tags(self, exprs, tagPrefix=None, limit=None, requestContext=None):
         return []
-    
+
     #future work
     def auto_complete_values(self, exprs, tag, valuePrefix=None, limit=None, requestContext=None):
         return []
-    
+
     # backwards compatible interface for older graphite-web installs
     def find_nodes(self, query):
         log.debug("IRONdbFinder.find_nodes, query: %s, max_retries: %d" % (query.pattern, self.max_retries))
@@ -310,8 +310,9 @@ class IronDBFinder(BaseFinder):
                 # up node that simply timed out is a failure
                 log.debug("IRONdbFinder.find_nodes ReadTimeout")
                 break
-        log.debug("IRONdbFinder.find_nodes, result: %s" % json.dumps(names))
-        
+        if settings.DEBUG:
+            log.debug("IRONdbFinder.find_nodes, result: %s" % json.dumps(names))
+
         # for each set of self.batch_size leafnodes, execute an IronDBMeasurementFetcher
         # so we can do these in batches.
         measurement_headers = copy.deepcopy(self.headers)
