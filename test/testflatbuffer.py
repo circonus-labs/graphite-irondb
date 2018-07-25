@@ -10,7 +10,7 @@ import irondb.metrics.MetricGetSeriesData as MetricGetSeriesData
 import irondb.metrics.MetricGetSeriesDataPoint as MetricGetSeriesDataPoint
 import irondb.flatbuf as irondb_flatbuf
 
-from irondb import IronDBFinder, IronDBReader, IronDBMeasurementFetcher
+from irondb import IRONdbFinder, IRONdbReader, IRONdbMeasurementFetcher
 
 GRAPHITE_RECORD_DATA_POINT_TYPE_NULL = 0
 GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE = 1

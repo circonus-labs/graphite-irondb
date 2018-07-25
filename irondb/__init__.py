@@ -1,2 +1,2 @@
 from irondb import *
-__all__ = ['IronDBFinder']
+__all__ = ['IRONdbFinder', 'IronDBFinder']

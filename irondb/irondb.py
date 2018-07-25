@@ -58,7 +58,7 @@ urls = None
 urllength = 4096
 
 
-class IronDBMeasurementFetcher(object):
+class IRONdbMeasurementFetcher(object):
     __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout', 'retries')
 
     def __init__(self, headers, timeout, connection_timeout, db_rollups, retries):
@@ -128,7 +128,7 @@ class IronDBMeasurementFetcher(object):
 
         return time_info, self.results['series'].get(name, [])
 
-class IronDBReader(object):
+class IRONdbReader(object):
     __slots__ = ('name', 'fetcher',)
 
     def __init__(self, name, fetcher):
@@ -144,7 +144,7 @@ class IronDBReader(object):
         return IntervalSet([Interval(0, int(time.time()))])
 
 
-class IronDBFinder(BaseFinder):
+class IRONdbFinder(BaseFinder):
     __slots__ = ('disabled', 'batch_size', 'database_rollups', 'timeout',
                  'connection_timeout', 'headers', 'disabled', 'max_retries')
 
@@ -247,7 +247,7 @@ class IronDBFinder(BaseFinder):
 
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
-        fetcher = IronDBMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
+        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
         for pattern, names in all_names.items():
             for name in names:
                 if 'leaf' in name and 'leaf_data' in name:
@@ -313,16 +313,18 @@ class IronDBFinder(BaseFinder):
         if settings.DEBUG:
             log.debug("IRONdbFinder.find_nodes, result: %s" % json.dumps(names))
 
-        # for each set of self.batch_size leafnodes, execute an IronDBMeasurementFetcher
+        # for each set of self.batch_size leafnodes, execute an IRONdbMeasurementFetcher
         # so we can do these in batches.
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
-        fetcher = IronDBMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
+        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
 
         for name in names:
             if 'leaf' in name and 'leaf_data' in name:
                 fetcher.add_leaf(name['name'], name['leaf_data'])
-                reader = IronDBReader(name['name'], fetcher)
+                reader = IRONdbReader(name['name'], fetcher)
                 yield LeafNode(name['name'], reader)
             else:
                 yield BranchNode(name['name'])
+
+IronDBFinder = IRONdbFinder

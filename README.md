@@ -25,7 +25,7 @@ $ sudo python setup.py install --with-flatcc=PREFIX
 ```
 $ sudo python setup.py install --pure-python
 ```
-The use of `--with-python` is provided for convenience; However, the native C module is recommended for best performance.
+The use of `--pure-python` is provided for convenience; However, the native C module is recommended for best performance.
 
 Using with graphite-web
 -----------------------
@@ -33,7 +33,7 @@ Using with graphite-web
 In your graphite's `local_settings.py`:
 
     STORAGE_FINDERS = (
-        'irondb.IronDBFinder',
+        'irondb.IRONdbFinder',
     )
 
     IRONDB_URLS = (
