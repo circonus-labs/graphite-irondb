@@ -57,6 +57,63 @@ class URLs(object):
 urls = None
 urllength = 4096
 
+class IRONdbLocalSettings(object):
+    _inst = None
+
+    @classmethod
+    def load(cls, obj):
+        inst = cls._inst
+        if inst is None:
+            cls._inst = inst = cls()
+        for attr in dir(inst):
+            if not attr.startswith('__'):
+                setattr(obj, attr, getattr(inst, attr))
+
+    def __init__(self):
+        global urls
+        if urls is None:
+            urls = getattr(settings, 'IRONDB_URLS')
+            if not urls:
+                urls = [settings.IRONDB_URL]
+            urls = URLs(urls)
+        try:
+            bs = getattr(settings, 'IRONDB_BATCH_SIZE')
+            if bs:
+                self.batch_size = int(bs)
+        except AttributeError:
+            self.batch_size = 250
+        try:
+            to = getattr(settings, 'IRONDB_TIMEOUT_MS')
+            if to:
+                self.timeout = int(to)
+        except AttributeError:
+            self.timeout = 10000
+        try:
+            cto = getattr(settings, 'IRONDB_CONNECTION_TIMEOUT_MS')
+            if cto:
+                self.connection_timeout = int(cto)
+        except AttributeError:
+            self.connection_timeout = 3005
+        try:
+            token = getattr(settings, 'CIRCONUS_TOKEN')
+            if token:
+                self.headers = {}
+                self.headers['X-Circonus-Auth-Token'] = token
+                self.headers['X-Circonus-App-Name'] = 'graphite-web'
+        except AttributeError:
+            self.headers = {}
+        self.headers['X-Snowth-Timeout'] = str(self.timeout) + 'ms'
+        try:
+            self.database_rollups = getattr(settings, 'IRONDB_USE_DATABASE_ROLLUPS')
+        except AttributeError:
+            self.database_rollups = True
+        try:
+            mr = getattr(settings, 'IRONDB_MAX_RETRIES')
+            if mr:
+                self.max_retries = int(mr)
+        except AttributeError:
+            self.max_retries = 2
+
 
 class IRONdbMeasurementFetcher(object):
     __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout', 'retries')
@@ -150,67 +207,23 @@ class IRONdbFinder(BaseFinder):
 
     def __init__(self, config=None):
         global urls
-        self.batch_size = 250
-        self.database_rollups = True
-        self.timeout = 10000
-        self.connection_timeout = 3005
-        self.headers = {}
-        self.disabled = False
-        self.max_retries = 2
         if config is not None:
+            self.batch_size = 250
+            self.database_rollups = True
+            self.timeout = 10000
+            self.connection_timeout = 3005
+            self.headers = {}
+            self.disabled = False
+            self.max_retries = 2
             if 'urls' in config['irondb']:
                 urls = config['irondb']['urls']
             else:
                 urls = [config['irondb']['url'].strip('/')]
             if 'batch_size' in config['irondb']:
                 self.batch_size = config['irondb']['batch_size']
+            urls = URLs(urls)
         else:
-            from django.conf import settings
-            urls = getattr(settings, 'IRONDB_URLS')
-            if not urls:
-                urls = [settings.IRONDB_URL]
-            try:
-                bs = getattr(settings, 'IRONDB_BATCH_SIZE')
-                if bs:
-                    self.batch_size = int(bs)
-            except AttributeError:
-                self.batch_size = 250
-            try:
-                to = getattr(settings, 'IRONDB_TIMEOUT_MS')
-                if to:
-                    self.timeout = int(to)
-            except AttributeError:
-                self.timeout = 10000
-            try:
-                cto = getattr(settings, 'IRONDB_CONNECTION_TIMEOUT_MS')
-                if cto:
-                    self.connection_timeout = int(cto)
-            except AttributeError:
-                self.connection_timeout = 3005
-
-            try:
-                token = getattr(settings, 'CIRCONUS_TOKEN')
-                if token:
-                    self.headers['X-Circonus-Auth-Token'] = token
-                    self.headers['X-Circonus-App-Name'] = 'graphite-web'
-            except AttributeError:
-                self.headers = {}
-
-            self.headers['X-Snowth-Timeout'] = str(self.timeout) + 'ms'
-
-            try:
-                self.database_rollups = getattr(settings, 'IRONDB_USE_DATABASE_ROLLUPS')
-            except AttributeError:
-                self.database_rollups = True
-            try:
-                mr = getattr(settings, 'IRONDB_MAX_RETRIES')
-                if mr:
-                    self.max_retries = int(mr)
-            except AttributeError:
-                self.max_retries = 2
-
-
-        urls = URLs(urls)
+            IRONdbLocalSettings.load(self)
 
     def fetch(self, patterns, start_time, end_time, now=None, requestContext=None):
         log.debug("IRONdbFinder.fetch called")
