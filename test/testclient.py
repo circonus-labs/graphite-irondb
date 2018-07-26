@@ -1,15 +1,15 @@
-from irondb import IronDBFinder, IronDBReader, IronDBMeasurementFetcher
+from irondb import IRONdbFinder, IRONdbReader, IRONdbMeasurementFetcher
 import sys
 
 class Query():
     def __init__(self, pattern):
         self.pattern = pattern
 
-class IronDBClient():
+class IRONdbClient():
 
     def __init__(self, url):
         self.url = url
-        self.finder = IronDBFinder({'irondb': {'url': self.url}})
+        self.finder = IRONdbFinder({'irondb': {'url': self.url}})
 
     def find_metrics(self, query):
         q = Query(query);
@@ -21,9 +21,9 @@ class IronDBClient():
                 print "Branch node: " + node.path
 
     def get_data(self, metric, start, end):
-        f = IronDBMeasurementFetcher()
+        f = IRONdbMeasurementFetcher()
         f.add_leaf(metric)
-        r = IronDBReader(metric, f)
+        r = IRONdbReader(metric, f)
         ti, data = r.fetch(start, end)
         print "Time info: start:" + str(ti[0]) + ", end:" + str(ti[1]) + ", data: " + str(ti[2])
         for point in data:
@@ -33,7 +33,7 @@ class IronDBClient():
 if __name__ == "__main__":
     u = sys.argv[1]
     q = sys.argv[2]
-    x = IronDBClient(u)
+    x = IRONdbClient(u)
     if len(sys.argv) == 3:
         print "Querying for: " + q
         x.find_metrics(q)
