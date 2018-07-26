@@ -36,6 +36,8 @@ In your graphite's `local_settings.py`:
         'irondb.IRONdbFinder',
     )
 
+    TAGDB = 'irondb.IRONdbTagFetcher'
+
     IRONDB_URLS = (
         'http://<irondb-host>:<port>/graphite/<account>/<optional_query_prefix>',
     )

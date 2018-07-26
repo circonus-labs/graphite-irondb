@@ -1,3 +1,4 @@
+import sys
 import itertools
 import time
 import threading
@@ -17,6 +18,10 @@ try:
     from graphite.finders.utils import BaseFinder
 except ImportError:
     BaseFinder = object
+try:
+    from graphite.tags.base import BaseTagDB
+except ImportError:
+    BaseTagDB = object
 
 
 import json
@@ -49,6 +54,18 @@ class URLs(object):
     @property
     def series_multi(self):
         return '{0}/series_multi/'.format(self.host)
+
+    @property
+    def tags(self):
+        return '{0}/tags/find/'.format(self.host)
+
+    @property
+    def tag_cats(self):
+        return '{0}/tag_cats/'.format(self.host).replace('/graphite/', '/find/', 1)
+
+    @property
+    def tag_vals(self):
+        return '{0}/tag_vals/'.format(self.host).replace('/graphite/', '/find/', 1)
 
     @property
     def host_count(self):
@@ -340,4 +357,80 @@ class IRONdbFinder(BaseFinder):
             else:
                 yield BranchNode(name['name'])
 
+
+class IRONdbTagFetcher(BaseTagDB):
+
+    def __init__(self, settings, *args, **kwargs):
+        super(IRONdbTagFetcher, self).__init__(settings, *args, **kwargs)
+        IRONdbLocalSettings.load(self)
+
+    def _request(self, url, query):
+        source = ""
+        if settings.DEBUG:
+            source = sys._getframe().f_back.f_code.co_name
+        tries = self.max_retries
+        for i in range(0, min(urls.host_count, tries)):
+            try:
+                r = requests.get(url, params={'query': query}, headers=self.headers,
+                                     timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+            except requests.exceptions.ConnectionError:
+                # on down nodes, try again on another node until "tries"
+                log.debug("IRONdbTagFetcher.%s ConnectionError" % source)
+            except requests.exceptions.ConnectTimeout:
+                # on down nodes, try again on another node until "tries"
+                log.debug("IRONdbTagFetcher.%s ConnectTimeout" % source)
+            except requests.exceptions.ReadTimeout:
+                # up node that simply timed out is a failure
+                log.debug("IRONdbTagFetcher.%s ReadTimeout" % source)
+                break
+        r = r.json()
+        if settings.DEBUG:
+            log.debug("IRONdbTagFetcher.%s, result: %s" % (source, json.dumps(r)))
+        return r
+
+    def _find_series(self, tags, requestContext=None):
+        query = ','.join(tags)
+        tag_series = self._request(urls.tags, query)
+        return [series['name'] for series in tag_series]
+
+    def list_tags(self, tagFilter=None, limit=None, requestContext=None):
+        query = 'and(*:*)'
+        tag_cats = self._request(urls.tag_cats, query)
+        return [{'tag': tag} for tag in tag_cats]
+
+    # FIXME count
+    def get_tag(self, tag, valueFilter=None, limit=None, requestContext=None):
+        query = 'and(%s:*)' % tag
+        tag_vals = self._request(urls.tag_vals, query)
+        return {'tag': tag, 'values': [{'value': val, 'count': 1} for val in tag_vals]}
+
+    # HttpTagDB
+    def get_series(self, path, requestContext=None):
+        parsed = self.parse(path)
+
+        seriesList = self.find_series(
+            [('%s=%s' % (tag, parsed.tags[tag])) for tag in parsed.tags],
+            requestContext=requestContext,
+        )
+
+        if parsed.path in seriesList:
+            return parsed
+
+    # HttpTagDB
+    def list_values(self, tag, valueFilter=None, limit=None, requestContext=None):
+        tagInfo = self.get_tag(tag, valueFilter=valueFilter, limit=limit, requestContext=requestContext)
+        if not tagInfo:
+            return []
+
+        return tagInfo['values']
+
+    # DummyTagDB
+    def tag_series(self, series, requestContext=None):
+        raise NotImplementedError('Tagging not implemented with IRONdbTagFetcher')
+
+    # DummyTagDB
+    def del_series(self, series, requestContext=None):
+        return True
+
 IronDBFinder = IRONdbFinder
+IronDBTagFetcher = IRONdbTagFetcher
