@@ -127,4 +127,4 @@ Changelog
 * **0.0.11** (2018-04-09): Allow handling Flatbuffer data coming from IRONdb
 * **0.0.12** (2018-04-16): Performance improvements to Flatbuffer via native C modules instead of native Python. Requires flatcc
 * **0.0.13** (2018-04-17): Fix memory leaks in native C Flatbuffer module
-* **0.0.X** (Unreleased): Graphite 1.1 compatibility
+* **0.0.14** (2018-07-31): Graphite 1.1 compatibility including tag support
