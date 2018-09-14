@@ -52,6 +52,7 @@ In your graphite's `local_settings.py`:
     IRONDB_TIMEOUT_MS = 10000
     IRONDB_CONNECTION_TIMEOUT_MS = 3005
     IRONDB_MAX_RETRIES = 2
+    IRONDB_QUERY_LOG = False
 
 Where `irondb-host` is the DNS or IP of an IRONdb node, `port`
 (usually 8112) is the listening port for IRONdb, and <account> is some
@@ -111,6 +112,10 @@ this will set an absolute timeout after which queries will be cut off.
 connect are retried (see `IRONDB_CONNECTION_TIMEOUT_MS`).  Timeouts or
 other failures are not retried to prevent thundering herd problems.
 
+`IRONDB_QUERY_LOG` is optional and will default to False.  Will log out
+all queries to the IRONdb backend nodes into the info.log if this is set
+to `True`.
+
 Changelog
 ---------
 
@@ -128,3 +133,4 @@ Changelog
 * **0.0.12** (2018-04-16): Performance improvements to Flatbuffer via native C modules instead of native Python. Requires flatcc
 * **0.0.13** (2018-04-17): Fix memory leaks in native C Flatbuffer module
 * **0.0.14** (2018-07-31): Graphite 1.1 compatibility including tag support
+* **0.0.15** (2018-09-14): `IRONDB_QUERY_LOG` support

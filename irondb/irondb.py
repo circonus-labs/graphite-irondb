@@ -130,6 +130,10 @@ class IRONdbLocalSettings(object):
                 self.max_retries = int(mr)
         except AttributeError:
             self.max_retries = 2
+        try:
+            self.query_log_enabled = getattr(settings, 'IRONDB_QUERY_LOG')
+        except AttributeError:
+            self.query_log_enabled = False
 
 
 class IRONdbMeasurementFetcher(object):
@@ -151,7 +155,7 @@ class IRONdbMeasurementFetcher(object):
     def add_leaf(self, leaf_name, leaf_data):
         self.leaves.append({'leaf_name': leaf_name, 'leaf_data': leaf_data})
 
-    def fetch(self, start_time, end_time):
+    def fetch(self, query_log, start_time, end_time):
         if (self.fetched == False):
             self.lock.acquire()
             # recheck in case we were waiting
@@ -165,14 +169,20 @@ class IRONdbMeasurementFetcher(object):
                 for i in range(0, min(urls.host_count, tries)):
                     try:
                         self.fetched = False
+                        query_start = time.gmtime()
+                        node = urls.series_multi
+                        data_type = "json"
                         d = requests.post(urls.series_multi, json = params, headers = self.headers,
                                           timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                         if 'content-type' in d.headers and d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
                             self.results = irondb_flatbuf.metric_get_results(d.content)
                             self.fetched = True
+                            data_type = "flatbuffer"
                         else:
                             self.results = d.json()
                             self.fetched = True
+
+                        query_log.query_log(node, query_start, d.elapsed, len(self.results["series"]), json.dumps(params), "data", data_type, start_time, end_time)
                         break
                     except requests.exceptions.ConnectionError:
                         # on down nodes, retry on another up to "tries" times
@@ -232,6 +242,7 @@ class IRONdbFinder(BaseFinder):
             self.headers = {}
             self.disabled = False
             self.max_retries = 2
+            self.query_log_enabled = False
             if 'urls' in config['irondb']:
                 urls = config['irondb']['urls']
             else:
@@ -241,6 +252,16 @@ class IRONdbFinder(BaseFinder):
             urls = URLs(urls)
         else:
             IRONdbLocalSettings.load(self)
+
+    def query_log(self, node, start, elapsed, result_count, query, query_type, data_format, data_start, data_end):
+        if self.query_log_enabled == False:
+            return
+
+        qs = time.strftime("%Y-%m-%d %H:%M:%S", start)
+        e = str(elapsed)
+
+        log.info('******* IRONdb query -- node: %s, start: %s, result_count: %d, type: %s, format: %s, elapsed: %s\n\n  [%s, %s] "%s"\n'
+                 % (node, qs, result_count, query_type, data_format, e, data_start, data_end, query))
 
     def fetch(self, patterns, start_time, end_time, now=None, requestContext=None):
         log.debug("IRONdbFinder.fetch called")
@@ -253,14 +274,19 @@ class IRONdbFinder(BaseFinder):
             name_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
             for i in range(0, min(urls.host_count, tries)):
                 try:
-                    r = requests.get(urls.names, params={'query': pattern}, headers=name_headers,
+                    node = urls.names
+                    query_start = time.gmtime()
+                    data_type = "json"
+                    r = requests.get(node, params={'query': pattern}, headers=name_headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                     if r.headers['content-type'] == 'application/json':
                         names = r.json()
                     elif r.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
                         names = irondb_flatbuf.metric_find_results(r.content)
+                        data_type = "flatbuffer"
                     else:
                         pass
+                    self.query_log(node, query_start, r.elapsed, len(names), pattern, "names", data_type, start_time, end_time)
                     break
                 except requests.exceptions.ConnectionError:
                     # on down nodes, try again on another node until "tries"
@@ -283,7 +309,7 @@ class IRONdbFinder(BaseFinder):
                 if 'leaf' in name and 'leaf_data' in name:
                     fetcher.add_leaf(name['name'], name['leaf_data'])
 
-        fetcher.fetch(start_time, end_time)
+        fetcher.fetch(self, start_time, end_time)
 
         results = []
         for pattern, names in all_names.items():
