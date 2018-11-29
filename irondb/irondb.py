@@ -174,6 +174,7 @@ class IRONdbMeasurementFetcher(object):
                         data_type = "json"
                         d = requests.post(urls.series_multi, json = params, headers = self.headers,
                                           timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+                        d.raise_for_status()
                         if 'content-type' in d.headers and d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
                             self.results = irondb_flatbuf.metric_get_results(d.content)
                             self.fetched = True
@@ -182,7 +183,8 @@ class IRONdbMeasurementFetcher(object):
                             self.results = d.json()
                             self.fetched = True
 
-                        query_log.query_log(node, query_start, d.elapsed, len(self.results["series"]), json.dumps(params), "data", data_type, start_time, end_time)
+                        result_count = len(self.results["series"]) if self.results else -1
+                        query_log.query_log(node, query_start, d.elapsed, result_count, json.dumps(params), "data", data_type, start_time, end_time)
                         break
                     except requests.exceptions.ConnectionError as ex:
                         # on down nodes, retry on another up to "tries" times
@@ -195,6 +197,10 @@ class IRONdbMeasurementFetcher(object):
                     except requests.exceptions.ReadTimeout as ex:
                         # read timeouts are failures, stop immediately
                         log.debug("IRONdbMeasurementFetcher.fetch ReadTimeout %s" % ex)
+                        break
+                    except requests.exceptions.HTTPError as ex:
+                        # http status code errors are failures, stop immediately
+                        log.debug("IRONdbMeasurementFetcher.fetch HTTPError %s %s" % (ex, d.content))
                         break
             if settings.DEBUG:
                 log.debug("IRONdbMeasurementFetcher.fetch results: %s" % json.dumps(self.results))
@@ -280,6 +286,7 @@ class IRONdbFinder(BaseFinder):
                     data_type = "json"
                     r = requests.get(node, params={'query': pattern}, headers=name_headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+                    r.raise_for_status()
                     if r.headers['content-type'] == 'application/json':
                         names = r.json()
                     elif r.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
@@ -287,7 +294,8 @@ class IRONdbFinder(BaseFinder):
                         data_type = "flatbuffer"
                     else:
                         pass
-                    self.query_log(node, query_start, r.elapsed, len(names), pattern, "names", data_type, start_time, end_time)
+                    result_count = len(names) if names else -1
+                    self.query_log(node, query_start, r.elapsed, result_count, pattern, "names", data_type, start_time, end_time)
                     break
                 except requests.exceptions.ConnectionError as ex:
                     # on down nodes, try again on another node until "tries"
@@ -298,6 +306,10 @@ class IRONdbFinder(BaseFinder):
                 except requests.exceptions.ReadTimeout as ex:
                     # up node that simply timed out is a failure
                     log.debug("IRONdbFinder.fetch ReadTimeout %s" % ex)
+                    break
+                except requests.exceptions.HTTPError as ex:
+                    # http status code errors are failures, stop immediately
+                    log.debug("IRONdbFinder.fetch HTTPError %s %s" % (ex, r.content))
                     break
 
             all_names[pattern] = names
@@ -350,6 +362,7 @@ class IRONdbFinder(BaseFinder):
             try:
                 r = requests.get(urls.names, params={'query': query.pattern}, headers=name_headers,
                                  timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+                r.raise_for_status()
                 if r.headers['content-type'] == 'application/json':
                     names = r.json()
                 elif r.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
@@ -366,6 +379,10 @@ class IRONdbFinder(BaseFinder):
             except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
                 log.debug("IRONdbFinder.find_nodes ReadTimeout %s" % ex)
+                break
+            except requests.exceptions.HTTPError as ex:
+                # http status code errors are failures, stop immediately
+                log.debug("IRONdbFinder.find_nodes HTTPError %s %s" % (ex, r.content))
                 break
         if settings.DEBUG:
             log.debug("IRONdbFinder.find_nodes, result: %s" % json.dumps(names))
@@ -400,6 +417,7 @@ class IRONdbTagFetcher(BaseTagDB):
             try:
                 r = requests.get(url, params={'query': query}, headers=self.headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+                r.raise_for_status()
             except requests.exceptions.ConnectionError as ex:
                 # on down nodes, try again on another node until "tries"
                 log.debug("IRONdbTagFetcher.%s ConnectionError %s" % (source, ex))
@@ -409,6 +427,10 @@ class IRONdbTagFetcher(BaseTagDB):
             except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
                 log.debug("IRONdbTagFetcher.%s ReadTimeout %s" % (source, ex))
+                break
+            except requests.exceptions.HTTPError as ex:
+                # http status code errors are failures, stop immediately
+                log.debug("IRONdbTagFetcher.%s HTTPError %s %s" % (source, ex, r.content))
                 break
         r = r.json()
         if settings.DEBUG:
