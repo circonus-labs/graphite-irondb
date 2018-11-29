@@ -184,16 +184,17 @@ class IRONdbMeasurementFetcher(object):
 
                         query_log.query_log(node, query_start, d.elapsed, len(self.results["series"]), json.dumps(params), "data", data_type, start_time, end_time)
                         break
-                    except requests.exceptions.ConnectionError:
+                    except requests.exceptions.ConnectionError as ex:
                         # on down nodes, retry on another up to "tries" times
-                        pass
-                    except requests.exceptions.ConnectTimeout:
+                        log.debug("IRONdbMeasurementFetcher.fetch ConnectionError %s" % ex)
+                    except requests.exceptions.ConnectTimeout as ex:
                         # on down nodes, retry on another up to "tries" times
-                        pass
-                    except JSONDecodeError:
-                        pass
-                    except requests.exceptions.ReadTimeout:
+                        log.debug("IRONdbMeasurementFetcher.fetch ConnectTimeout %s" % ex)
+                    except JSONDecodeError as ex:
+                        log.debug("IRONdbMeasurementFetcher.fetch JSONDecodeError %s" % ex)
+                    except requests.exceptions.ReadTimeout as ex:
                         # read timeouts are failures, stop immediately
+                        log.debug("IRONdbMeasurementFetcher.fetch ReadTimeout %s" % ex)
                         break
             if settings.DEBUG:
                 log.debug("IRONdbMeasurementFetcher.fetch results: %s" % json.dumps(self.results))
@@ -288,15 +289,15 @@ class IRONdbFinder(BaseFinder):
                         pass
                     self.query_log(node, query_start, r.elapsed, len(names), pattern, "names", data_type, start_time, end_time)
                     break
-                except requests.exceptions.ConnectionError:
+                except requests.exceptions.ConnectionError as ex:
                     # on down nodes, try again on another node until "tries"
-                    log.debug("IRONdbFinder.fetch ConnectionError")
-                except requests.exceptions.ConnectTimeout:
+                    log.debug("IRONdbFinder.fetch ConnectionError %s" % ex)
+                except requests.exceptions.ConnectTimeout as ex:
                     # on down nodes, try again on another node until "tries"
-                    log.debug("IRONdbFinder.fetch ConnectTimeout")
-                except requests.exceptions.ReadTimeout:
+                    log.debug("IRONdbFinder.fetch ConnectTimeout %s" % ex)
+                except requests.exceptions.ReadTimeout as ex:
                     # up node that simply timed out is a failure
-                    log.debug("IRONdbFinder.fetch ReadTimeout")
+                    log.debug("IRONdbFinder.fetch ReadTimeout %s" % ex)
                     break
 
             all_names[pattern] = names
@@ -356,15 +357,15 @@ class IRONdbFinder(BaseFinder):
                 else:
                     pass
                 break
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.ConnectionError as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbFinder.find_nodes ConnectionError")
-            except requests.exceptions.ConnectTimeout:
+                log.debug("IRONdbFinder.find_nodes ConnectionError %s" % ex)
+            except requests.exceptions.ConnectTimeout as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbFinder.find_nodes ConnectTimeout")
-            except requests.exceptions.ReadTimeout:
+                log.debug("IRONdbFinder.find_nodes ConnectTimeout %s" % ex)
+            except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
-                log.debug("IRONdbFinder.find_nodes ReadTimeout")
+                log.debug("IRONdbFinder.find_nodes ReadTimeout %s" % ex)
                 break
         if settings.DEBUG:
             log.debug("IRONdbFinder.find_nodes, result: %s" % json.dumps(names))
@@ -399,15 +400,15 @@ class IRONdbTagFetcher(BaseTagDB):
             try:
                 r = requests.get(url, params={'query': query}, headers=self.headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.ConnectionError as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbTagFetcher.%s ConnectionError" % source)
-            except requests.exceptions.ConnectTimeout:
+                log.debug("IRONdbTagFetcher.%s ConnectionError %s" % (source, ex))
+            except requests.exceptions.ConnectTimeout as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbTagFetcher.%s ConnectTimeout" % source)
-            except requests.exceptions.ReadTimeout:
+                log.debug("IRONdbTagFetcher.%s ConnectTimeout %s" % (source, ex))
+            except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
-                log.debug("IRONdbTagFetcher.%s ReadTimeout" % source)
+                log.debug("IRONdbTagFetcher.%s ReadTimeout %s" % (source, ex))
                 break
         r = r.json()
         if settings.DEBUG:
