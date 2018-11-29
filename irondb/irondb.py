@@ -418,6 +418,10 @@ class IRONdbTagFetcher(BaseTagDB):
                 r = requests.get(url, params={'query': query}, headers=self.headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                 r.raise_for_status()
+                r = r.json()
+                if settings.DEBUG:
+                    log.debug("IRONdbTagFetcher.%s, result: %s" % (source, json.dumps(r)))
+                return r
             except requests.exceptions.ConnectionError as ex:
                 # on down nodes, try again on another node until "tries"
                 log.debug("IRONdbTagFetcher.%s ConnectionError %s" % (source, ex))
@@ -432,10 +436,7 @@ class IRONdbTagFetcher(BaseTagDB):
                 # http status code errors are failures, stop immediately
                 log.debug("IRONdbTagFetcher.%s HTTPError %s %s" % (source, ex, r.content))
                 break
-        r = r.json()
-        if settings.DEBUG:
-            log.debug("IRONdbTagFetcher.%s, result: %s" % (source, json.dumps(r)))
-        return r
+        return ()
 
     def _find_series(self, tags, requestContext=None):
         query = ','.join(tags)
@@ -451,6 +452,8 @@ class IRONdbTagFetcher(BaseTagDB):
     def get_tag(self, tag, valueFilter=None, limit=None, requestContext=None):
         query = 'and(%s:*)' % tag
         tag_vals = self._request(urls.tag_vals, query)
+        if not tag_vals:
+            return None
         return {'tag': tag, 'values': [{'value': val, 'count': 1} for val in tag_vals]}
 
     # HttpTagDB
