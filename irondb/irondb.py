@@ -174,6 +174,7 @@ class IRONdbMeasurementFetcher(object):
                         data_type = "json"
                         d = requests.post(urls.series_multi, json = params, headers = self.headers,
                                           timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+                        d.raise_for_status()
                         if 'content-type' in d.headers and d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
                             self.results = irondb_flatbuf.metric_get_results(d.content)
                             self.fetched = True
@@ -182,18 +183,24 @@ class IRONdbMeasurementFetcher(object):
                             self.results = d.json()
                             self.fetched = True
 
-                        query_log.query_log(node, query_start, d.elapsed, len(self.results["series"]), json.dumps(params), "data", data_type, start_time, end_time)
+                        result_count = len(self.results["series"]) if self.results else -1
+                        query_log.query_log(node, query_start, d.elapsed, result_count, json.dumps(params), "data", data_type, start_time, end_time)
                         break
-                    except requests.exceptions.ConnectionError:
+                    except requests.exceptions.ConnectionError as ex:
                         # on down nodes, retry on another up to "tries" times
-                        pass
-                    except requests.exceptions.ConnectTimeout:
+                        log.debug("IRONdbMeasurementFetcher.fetch ConnectionError %s" % ex)
+                    except requests.exceptions.ConnectTimeout as ex:
                         # on down nodes, retry on another up to "tries" times
-                        pass
-                    except JSONDecodeError:
-                        pass
-                    except requests.exceptions.ReadTimeout:
+                        log.debug("IRONdbMeasurementFetcher.fetch ConnectTimeout %s" % ex)
+                    except JSONDecodeError as ex:
+                        log.debug("IRONdbMeasurementFetcher.fetch JSONDecodeError %s" % ex)
+                    except requests.exceptions.ReadTimeout as ex:
                         # read timeouts are failures, stop immediately
+                        log.debug("IRONdbMeasurementFetcher.fetch ReadTimeout %s" % ex)
+                        break
+                    except requests.exceptions.HTTPError as ex:
+                        # http status code errors are failures, stop immediately
+                        log.debug("IRONdbMeasurementFetcher.fetch HTTPError %s %s" % (ex, d.content))
                         break
             if settings.DEBUG:
                 log.debug("IRONdbMeasurementFetcher.fetch results: %s" % json.dumps(self.results))
@@ -279,6 +286,7 @@ class IRONdbFinder(BaseFinder):
                     data_type = "json"
                     r = requests.get(node, params={'query': pattern}, headers=name_headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+                    r.raise_for_status()
                     if r.headers['content-type'] == 'application/json':
                         names = r.json()
                     elif r.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
@@ -286,17 +294,22 @@ class IRONdbFinder(BaseFinder):
                         data_type = "flatbuffer"
                     else:
                         pass
-                    self.query_log(node, query_start, r.elapsed, len(names), pattern, "names", data_type, start_time, end_time)
+                    result_count = len(names) if names else -1
+                    self.query_log(node, query_start, r.elapsed, result_count, pattern, "names", data_type, start_time, end_time)
                     break
-                except requests.exceptions.ConnectionError:
+                except requests.exceptions.ConnectionError as ex:
                     # on down nodes, try again on another node until "tries"
-                    log.debug("IRONdbFinder.fetch ConnectionError")
-                except requests.exceptions.ConnectTimeout:
+                    log.debug("IRONdbFinder.fetch ConnectionError %s" % ex)
+                except requests.exceptions.ConnectTimeout as ex:
                     # on down nodes, try again on another node until "tries"
-                    log.debug("IRONdbFinder.fetch ConnectTimeout")
-                except requests.exceptions.ReadTimeout:
+                    log.debug("IRONdbFinder.fetch ConnectTimeout %s" % ex)
+                except requests.exceptions.ReadTimeout as ex:
                     # up node that simply timed out is a failure
-                    log.debug("IRONdbFinder.fetch ReadTimeout")
+                    log.debug("IRONdbFinder.fetch ReadTimeout %s" % ex)
+                    break
+                except requests.exceptions.HTTPError as ex:
+                    # http status code errors are failures, stop immediately
+                    log.debug("IRONdbFinder.fetch HTTPError %s %s" % (ex, r.content))
                     break
 
             all_names[pattern] = names
@@ -349,6 +362,7 @@ class IRONdbFinder(BaseFinder):
             try:
                 r = requests.get(urls.names, params={'query': query.pattern}, headers=name_headers,
                                  timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+                r.raise_for_status()
                 if r.headers['content-type'] == 'application/json':
                     names = r.json()
                 elif r.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
@@ -356,15 +370,19 @@ class IRONdbFinder(BaseFinder):
                 else:
                     pass
                 break
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.ConnectionError as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbFinder.find_nodes ConnectionError")
-            except requests.exceptions.ConnectTimeout:
+                log.debug("IRONdbFinder.find_nodes ConnectionError %s" % ex)
+            except requests.exceptions.ConnectTimeout as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbFinder.find_nodes ConnectTimeout")
-            except requests.exceptions.ReadTimeout:
+                log.debug("IRONdbFinder.find_nodes ConnectTimeout %s" % ex)
+            except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
-                log.debug("IRONdbFinder.find_nodes ReadTimeout")
+                log.debug("IRONdbFinder.find_nodes ReadTimeout %s" % ex)
+                break
+            except requests.exceptions.HTTPError as ex:
+                # http status code errors are failures, stop immediately
+                log.debug("IRONdbFinder.find_nodes HTTPError %s %s" % (ex, r.content))
                 break
         if settings.DEBUG:
             log.debug("IRONdbFinder.find_nodes, result: %s" % json.dumps(names))
@@ -399,20 +417,26 @@ class IRONdbTagFetcher(BaseTagDB):
             try:
                 r = requests.get(url, params={'query': query}, headers=self.headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
-            except requests.exceptions.ConnectionError:
+                r.raise_for_status()
+                r = r.json()
+                if settings.DEBUG:
+                    log.debug("IRONdbTagFetcher.%s, result: %s" % (source, json.dumps(r)))
+                return r
+            except requests.exceptions.ConnectionError as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbTagFetcher.%s ConnectionError" % source)
-            except requests.exceptions.ConnectTimeout:
+                log.debug("IRONdbTagFetcher.%s ConnectionError %s" % (source, ex))
+            except requests.exceptions.ConnectTimeout as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbTagFetcher.%s ConnectTimeout" % source)
-            except requests.exceptions.ReadTimeout:
+                log.debug("IRONdbTagFetcher.%s ConnectTimeout %s" % (source, ex))
+            except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
-                log.debug("IRONdbTagFetcher.%s ReadTimeout" % source)
+                log.debug("IRONdbTagFetcher.%s ReadTimeout %s" % (source, ex))
                 break
-        r = r.json()
-        if settings.DEBUG:
-            log.debug("IRONdbTagFetcher.%s, result: %s" % (source, json.dumps(r)))
-        return r
+            except requests.exceptions.HTTPError as ex:
+                # http status code errors are failures, stop immediately
+                log.debug("IRONdbTagFetcher.%s HTTPError %s %s" % (source, ex, r.content))
+                break
+        return ()
 
     def _find_series(self, tags, requestContext=None):
         query = ','.join(tags)
@@ -428,6 +452,8 @@ class IRONdbTagFetcher(BaseTagDB):
     def get_tag(self, tag, valueFilter=None, limit=None, requestContext=None):
         query = 'and(%s:*)' % tag
         tag_vals = self._request(urls.tag_vals, query)
+        if not tag_vals:
+            return None
         return {'tag': tag, 'values': [{'value': val, 'count': 1} for val in tag_vals]}
 
     # HttpTagDB
