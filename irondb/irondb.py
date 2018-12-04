@@ -450,13 +450,19 @@ class IRONdbTagFetcher(BaseTagDB):
         tag_cats = self._request(urls.tag_cats, query)
         return [{'tag': tag} for tag in tag_cats]
 
-    # FIXME count
     def get_tag(self, tag, valueFilter=None, limit=None, requestContext=None):
         query = {'query': 'and(*:*)', 'category': tag}
         tag_vals = self._request(urls.tag_vals, query)
         if not tag_vals:
             return None
-        return {'tag': tag, 'values': [{'value': val, 'count': 1} for val in tag_vals]}
+        res = []
+        for val in tag_vals:
+            tag_series = self._request(urls.tags, '%s=%s' % (tag, val))
+            if not tag_series:
+                return None
+            tag_count = len(tag_series)
+            res.append({'value': val, 'count': tag_count})
+        return {'tag': tag, 'values': res}
 
     # HttpTagDB
     def get_series(self, path, requestContext=None):
