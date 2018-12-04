@@ -409,13 +409,15 @@ class IRONdbTagFetcher(BaseTagDB):
         IRONdbLocalSettings.load(self)
 
     def _request(self, url, query):
+        if not isinstance(query, dict):
+            query = {'query': query}
         source = ""
         if settings.DEBUG:
             source = sys._getframe().f_back.f_code.co_name
         tries = self.max_retries
         for i in range(0, min(urls.host_count, tries)):
             try:
-                r = requests.get(url, params={'query': query}, headers=self.headers,
+                r = requests.get(url, params=query, headers=self.headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                 r.raise_for_status()
                 r = r.json()
@@ -450,7 +452,7 @@ class IRONdbTagFetcher(BaseTagDB):
 
     # FIXME count
     def get_tag(self, tag, valueFilter=None, limit=None, requestContext=None):
-        query = 'and(%s:*)' % tag
+        query = {'query': 'and(*:*)', 'category': tag}
         tag_vals = self._request(urls.tag_vals, query)
         if not tag_vals:
             return None
