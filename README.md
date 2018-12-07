@@ -134,3 +134,4 @@ Changelog
 * **0.0.13** (2018-04-17): Fix memory leaks in native C Flatbuffer module
 * **0.0.14** (2018-07-31): Graphite 1.1 compatibility including tag support
 * **0.0.15** (2018-09-14): `IRONDB_QUERY_LOG` support
+* **0.0.16** (2018-12-06): Improve error handling. Fix tag categories
