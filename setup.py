@@ -59,7 +59,7 @@ Graphite IRONdb options:
 
 if __name__ == '__main__':
     if '--help' in sys.argv or '-h' in sys.argv:
-        print graphite_irondb_help
+        print(graphite_irondb_help)
     else:
         build_ext(sys.argv, setup_args)
     setup(**setup_args)

@@ -25,19 +25,19 @@ static void _pydict_set(PyObject *dict, const char *strkey, PyObject *pyval) {
     Py_DECREF(pyval);
 }
 
-struct irondb_flatcc_modstate {
+struct flatcc_modstate {
     PyObject *error_type;
 };
 
 #if PY_MAJOR_VERSION >= 3
-#define GETSTATE(m) ((struct irondb_flatcc_modstate*)PyModule_GetState(m))
+#define GETSTATE(m) ((struct flatcc_modstate*)PyModule_GetState(m))
 #else
 #define GETSTATE(m) (&_state)
-static struct irondb_flatcc_modstate _state;
+static struct flatcc_modstate _state;
 #endif
 
-static PyObject * irondb_flatcc_metric_find_results(PyObject *m, PyObject *args) {
-    struct irondb_flatcc_modstate *st = GETSTATE(m);
+static PyObject * flatcc_metric_find_results(PyObject *m, PyObject *args) {
+    struct flatcc_modstate *st = GETSTATE(m);
     char *buffer;
     int buffer_len;
     if (!PyArg_ParseTuple(args, "s#", &buffer, &buffer_len))
@@ -85,8 +85,8 @@ static PyObject * irondb_flatcc_metric_find_results(PyObject *m, PyObject *args)
     return array;
 }
 
-static PyObject * irondb_flatcc_metric_get_results(PyObject *m, PyObject *args) {
-    struct irondb_flatcc_modstate *st = GETSTATE(m);
+static PyObject * flatcc_metric_get_results(PyObject *m, PyObject *args) {
+    struct flatcc_modstate *st = GETSTATE(m);
     char *buffer;
     int buffer_len;
     if (!PyArg_ParseTuple(args, "s#", &buffer, &buffer_len))
@@ -153,20 +153,20 @@ static PyObject * irondb_flatcc_metric_get_results(PyObject *m, PyObject *args) 
     return return_dict;
 }
 
-static PyMethodDef irondb_flatcc_methods[] = {
-    { "metric_find_results", irondb_flatcc_metric_find_results, METH_VARARGS, NULL },
-    { "metric_get_results",  irondb_flatcc_metric_get_results,  METH_VARARGS, NULL },
+static PyMethodDef flatcc_methods[] = {
+    { "metric_find_results", flatcc_metric_find_results, METH_VARARGS, NULL },
+    { "metric_get_results",  flatcc_metric_get_results,  METH_VARARGS, NULL },
     { NULL, NULL }
 };
 
 #if PY_MAJOR_VERSION >= 3
 
-static int irondb_flatcc_traverse(PyObject *m, visitproc visit, void *arg) {
+static int flatcc_traverse(PyObject *m, visitproc visit, void *arg) {
     Py_VISIT(GETSTATE(m)->error_type);
     return 0;
 }
 
-static int irondb_flatcc_clear(PyObject *m) {
+static int flatcc_clear(PyObject *m) {
     Py_CLEAR(GETSTATE(m)->error_type);
     return 0;
 }
@@ -176,18 +176,18 @@ static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
     "flatcc",
     NULL,
-    sizeof(struct irondb_flatcc_modstate),
-    irondb_flatcc_methods,
+    sizeof(struct flatcc_modstate),
+    flatcc_methods,
     NULL,
-    irondb_flatcc_traverse,
-    irondb_flatcc_clear,
+    flatcc_traverse,
+    flatcc_clear,
     NULL
 };
 
 #define INITERROR return NULL
 
 PyMODINIT_FUNC
-PyInit_irondb_flatcc(void)
+PyInit_flatcc(void)
 
 #else
 #define INITERROR return
@@ -199,12 +199,12 @@ initflatcc(void)
 #if PY_MAJOR_VERSION >= 3
     PyObject *module = PyModule_Create(&moduledef);
 #else
-    PyObject *module = Py_InitModule("flatcc", irondb_flatcc_methods);
+    PyObject *module = Py_InitModule("flatcc", flatcc_methods);
 #endif
 
     if (module == NULL)
         INITERROR;
-    struct irondb_flatcc_modstate *st = GETSTATE(module);
+    struct flatcc_modstate *st = GETSTATE(module);
 
     st->error_type = PyErr_NewException("flatcc.Error", NULL, NULL);
     if (st->error_type == NULL) {
