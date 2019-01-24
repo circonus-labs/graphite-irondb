@@ -2,14 +2,16 @@ import sys
 import itertools
 import time
 import threading
-import django
 import copy
 import json
-
 try:
-    import flatcc as irondb_flatbuf
+    from json.decoder import JSONDecodeError
 except ImportError:
-    import flatbuf as irondb_flatbuf
+    JSONDecodeError = ValueError
+
+import requests
+import django
+from django.conf import settings
 
 from graphite.intervals import Interval, IntervalSet
 from graphite.node import LeafNode, BranchNode
@@ -23,15 +25,13 @@ try:
 except ImportError:
     BaseTagDB = object
 
-
-import json
-import requests
-from django.conf import settings
-
 try:
-    from json.decoder import JSONDecodeError
+    import flatcc as irondb_flatbuf
+    log.info("IRONdb Using flatcc native Flatbuffer module")
 except ImportError:
-    JSONDecodeError = ValueError
+    import flatbuf as irondb_flatbuf
+    log.info("IRONdb Using pure Python Flatbuffer module")
+log.info(irondb_flatbuf)
 
 
 class URLs(object):
