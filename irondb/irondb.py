@@ -27,8 +27,11 @@ except ImportError:
 
 try:
     import flatcc as irondb_flatbuf
+    log.info("IRONdb Using flatcc native Flatbuffer module")
 except ImportError:
     import flatbuf as irondb_flatbuf
+    log.info("IRONdb Using pure Python Flatbuffer module")
+log.info(irondb_flatbuf)
 
 
 class URLs(object):
