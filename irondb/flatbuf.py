@@ -4,9 +4,17 @@ from metrics.MetricSearchResultList import MetricSearchResultList
 from metrics.MetricGetResult import MetricGetResult
 
 try:
+    from django.core.exceptions import ImproperlyConfigured
+except ImportError:
+    ImproperlyConfigured = ImportError
+
+try:
     from graphite.logger import log
-except django.core.exceptions.ImproperlyConfigured:
-    print "No graphite logger"
+except ImproperlyConfigured:
+    class Log(object):
+        def info(self, msg):
+            print(msg)
+    log = Log()
 
 #record types used by irondb in flatbuffer data
 #to determine data type
