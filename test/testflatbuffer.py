@@ -1,16 +1,19 @@
 import sys
 import flatbuffers
-import pprint
+import json
 import time
+
+def eprint(msg):
+    sys.stderr.write(str(msg) + "\n")
+    sys.stderr.flush()
+
 import irondb.metrics.MetricSearchResultList as MetricSearchResultList
 import irondb.metrics.MetricSearchResult as MetricSearchResult
 import irondb.metrics.LeafData as LeafData
 import irondb.metrics.MetricGetResult as MetricGetResult
 import irondb.metrics.MetricGetSeriesData as MetricGetSeriesData
 import irondb.metrics.MetricGetSeriesDataPoint as MetricGetSeriesDataPoint
-import irondb.flatbuf as irondb_flatbuf
 
-from irondb import IRONdbFinder, IRONdbReader, IRONdbMeasurementFetcher
 
 GRAPHITE_RECORD_DATA_POINT_TYPE_NULL = 0
 GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE = 1
@@ -18,12 +21,20 @@ GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE = 1
 if __name__ == "__main__":
     cmd = sys.argv[1]
     filename = sys.argv[2]
+    do_output = "-o" in sys.argv or "--output" in sys.argv
+    use_flatcc = "-c" in sys.argv or "--flatcc" in sys.argv
+    if use_flatcc:
+        import irondb.flatcc as irondb_flatbuf
+    else:
+        import irondb.flatbuf as irondb_flatbuf
+    if cmd.startswith("read"):
+        eprint("Using Flatbuffer module: " + irondb_flatbuf.__name__)
 
     if cmd == "create_find_data":
         num_entries = int(sys.argv[3])
         leaf_cutoff = num_entries - (num_entries / 10)
 
-        builder = flatbuffers.Builder(1024 * 1024 * 1024)
+        builder = flatbuffers.Builder(0)
         leaf_arr = []
         for x in range(0, num_entries):
             e = None
@@ -72,12 +83,12 @@ if __name__ == "__main__":
         f.write(buf)
         f.close()
 
-        print("Wrote data to " + filename)
+        eprint("Wrote data to " + filename)
 
     elif cmd == "create_get_data":
         num_entries = int(sys.argv[3])
 
-        builder = flatbuffers.Builder(1024 * 1024 * 1024)
+        builder = flatbuffers.Builder(0)
         dp_array = []
         for x in range(0, num_entries):
             dp_array.append([])
@@ -131,46 +142,51 @@ if __name__ == "__main__":
         f.write(buf)
         f.close()
 
-        print("Wrote data to " + filename)
-        pass
+        eprint("Wrote data to " + filename)
 
     elif cmd == "read_find_data":
         f = open(filename, 'r')
         buf = f.read()
         f.close()
 
-        print("Read data from " + filename)
+        eprint("Read data from " + filename)
 
         start_time = time.time()
         array = irondb_flatbuf.metric_find_results(buf)
         end_time = time.time()
         total_time = end_time - start_time
 
-        print("Total Entries Read: " + str(len(array)))
-        print("Total Seconds To Run: " + str(total_time))
-        print("Entries Per Second: " + str(len(array) / total_time))
-        print("Data Read:")
-        pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(array)
+        if array:
+            eprint("Total Entries Read: " + str(len(array)))
+            eprint("Total Seconds To Run: " + str(total_time))
+            eprint("Entries Per Second: " + str(len(array) / total_time))
+            if do_output:
+                print(json.dumps(array, indent=4, sort_keys=True))
+        else:
+            eprint("Failed to parse find data from " + filename)
 
     elif cmd == "read_get_data":
         f = open(filename, 'r')
         buf = f.read()
         f.close()
 
-        print("Read data from " + filename)
+        eprint("Read data from " + filename)
 
         start_time = time.time()
         datadict = irondb_flatbuf.metric_get_results(buf)
         end_time = time.time()
         total_time = end_time - start_time
 
-        print("Total Entries Read: " + str(len(datadict[u"series"])))
-        print("Total Seconds To Run: " + str(total_time))
-        print("Entries Per Second: " + str(len(datadict[u"series"]) / total_time))
-        print("Data Read:")
-        pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(datadict)
+        if datadict:
+            eprint("Total Entries Read: " + str(len(datadict[u"series"])))
+            eprint("Total Seconds To Run: " + str(total_time))
+            eprint("Entries Per Second: " + str(len(datadict[u"series"]) / total_time))
+            if do_output:
+                print(json.dumps(datadict, indent=4, sort_keys=True))
+        else:
+            eprint("Failed to parse get data from " + filename)
 
     else:
-        print("Unknown Command")
+        eprint("Unknown Command: " + cmd)
+        exit(1)
+    eprint("")

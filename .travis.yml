@@ -11,16 +11,4 @@ python:
   - "2.7"
 
 script:
-  - mkdir dist  
-  - cd dist
-  - git clone https://github.com/dvidelabs/flatcc
-  - |
-    cmake flatcc \
-    -DBUILD_SHARED_LIBS=on \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DFLATCC_RTONLY=on \
-    -DFLATCC_INSTALL=on \
-    -DCMAKE_INSTALL_PREFIX:PATH=`pwd`
-  - make install
-  - cd ..
-  - python setup.py build --with-flatcc=dist
+  - buildtools/ci-travis.sh
