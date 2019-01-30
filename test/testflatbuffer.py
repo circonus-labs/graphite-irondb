@@ -34,7 +34,7 @@ if __name__ == "__main__":
         num_entries = int(sys.argv[3])
         leaf_cutoff = num_entries - (num_entries / 10)
 
-        builder = flatbuffers.Builder(1024 * 1024 * 1024)
+        builder = flatbuffers.Builder(0)
         leaf_arr = []
         for x in range(0, num_entries):
             e = None
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     elif cmd == "create_get_data":
         num_entries = int(sys.argv[3])
 
-        builder = flatbuffers.Builder(1024 * 1024 * 1024)
+        builder = flatbuffers.Builder(0)
         dp_array = []
         for x in range(0, num_entries):
             dp_array.append([])
