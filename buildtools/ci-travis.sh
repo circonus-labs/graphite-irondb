@@ -18,5 +18,7 @@ install_flatcc () {
     cd ..
 }
 
-mkdir -p dist
+mkdir -p dist/py
 install_flatcc
+PYTHONPATH=dist/py $PYTHON_BIN setup.py install --user --install-lib=`pwd`/dist/py --with-flatcc=dist
+PYTHONPATH=dist/py test/testflatbuffer.sh
