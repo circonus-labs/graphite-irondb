@@ -1,6 +1,6 @@
 import sys
 import flatbuffers
-import pprint
+import json
 import time
 
 def eprint(msg):
@@ -161,8 +161,7 @@ if __name__ == "__main__":
             eprint("Total Seconds To Run: " + str(total_time))
             eprint("Entries Per Second: " + str(len(array) / total_time))
             if do_output:
-                pp = pprint.PrettyPrinter(indent=4)
-                pp.pprint(array)
+                print(json.dumps(array, indent=4, sort_keys=True))
         else:
             eprint("Failed to parse find data from " + filename)
 
@@ -183,8 +182,7 @@ if __name__ == "__main__":
             eprint("Total Seconds To Run: " + str(total_time))
             eprint("Entries Per Second: " + str(len(datadict[u"series"]) / total_time))
             if do_output:
-                pp = pprint.PrettyPrinter(indent=4)
-                pp.pprint(datadict)
+                print(json.dumps(datadict, indent=4, sort_keys=True))
         else:
             eprint("Failed to parse get data from " + filename)
 
