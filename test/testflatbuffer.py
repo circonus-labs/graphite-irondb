@@ -8,9 +8,7 @@ import irondb.metrics.LeafData as LeafData
 import irondb.metrics.MetricGetResult as MetricGetResult
 import irondb.metrics.MetricGetSeriesData as MetricGetSeriesData
 import irondb.metrics.MetricGetSeriesDataPoint as MetricGetSeriesDataPoint
-import irondb.flatbuf as irondb_flatbuf
 
-from irondb import IRONdbFinder, IRONdbReader, IRONdbMeasurementFetcher
 
 GRAPHITE_RECORD_DATA_POINT_TYPE_NULL = 0
 GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE = 1
@@ -18,6 +16,13 @@ GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE = 1
 if __name__ == "__main__":
     cmd = sys.argv[1]
     filename = sys.argv[2]
+    use_flatcc = "-c" in sys.argv or "--flatcc" in sys.argv
+    if use_flatcc:
+        import irondb.flatcc as irondb_flatbuf
+    else:
+        import irondb.flatbuf as irondb_flatbuf
+    if cmd.startswith("read"):
+        eprint("Using Flatbuffer module: " + irondb_flatbuf.__name__)
 
     if cmd == "create_find_data":
         num_entries = int(sys.argv[3])
