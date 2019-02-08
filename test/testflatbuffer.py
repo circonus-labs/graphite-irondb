@@ -178,9 +178,9 @@ if __name__ == "__main__":
         total_time = end_time - start_time
 
         if datadict:
-            eprint("Total Entries Read: " + str(len(datadict[u"series"])))
+            eprint("Total Entries Read: " + str(len(datadict["series"])))
             eprint("Total Seconds To Run: " + str(total_time))
-            eprint("Entries Per Second: " + str(len(datadict[u"series"]) / total_time))
+            eprint("Entries Per Second: " + str(len(datadict["series"]) / total_time))
             if do_output:
                 print(json.dumps(datadict, indent=4, sort_keys=True))
         else:
