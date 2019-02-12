@@ -192,7 +192,11 @@ class IRONdbMeasurementFetcher(object):
                     except requests.exceptions.ConnectTimeout as ex:
                         # on down nodes, retry on another up to "tries" times
                         log.debug("IRONdbMeasurementFetcher.fetch ConnectTimeout %s" % ex)
+                    except irondb_flatbuf.FlatBufferError as ex:
+                        # flatbuffer error, try again
+                        log.debug("IRONdbMeasurementFetcher.fetch FlatBufferError %s" % ex)
                     except JSONDecodeError as ex:
+                        # json error, try again
                         log.debug("IRONdbMeasurementFetcher.fetch JSONDecodeError %s" % ex)
                     except requests.exceptions.ReadTimeout as ex:
                         # read timeouts are failures, stop immediately
@@ -303,6 +307,9 @@ class IRONdbFinder(BaseFinder):
                 except requests.exceptions.ConnectTimeout as ex:
                     # on down nodes, try again on another node until "tries"
                     log.debug("IRONdbFinder.fetch ConnectTimeout %s" % ex)
+                except irondb_flatbuf.FlatBufferError as ex:
+                    # flatbuffer error, try again
+                    log.debug("IRONdbFinder.fetch FlatBufferError %s" % ex)
                 except requests.exceptions.ReadTimeout as ex:
                     # up node that simply timed out is a failure
                     log.debug("IRONdbFinder.fetch ReadTimeout %s" % ex)
@@ -376,6 +383,9 @@ class IRONdbFinder(BaseFinder):
             except requests.exceptions.ConnectTimeout as ex:
                 # on down nodes, try again on another node until "tries"
                 log.debug("IRONdbFinder.find_nodes ConnectTimeout %s" % ex)
+            except irondb_flatbuf.FlatBufferError as ex:
+                # flatbuffer error, try again
+                log.debug("IRONdbFinder.find_nodes FlatBufferError %s" % ex)
             except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
                 log.debug("IRONdbFinder.find_nodes ReadTimeout %s" % ex)
