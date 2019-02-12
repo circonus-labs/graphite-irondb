@@ -3,6 +3,8 @@ import flatbuffers
 from metrics.MetricSearchResultList import MetricSearchResultList
 from metrics.MetricGetResult import MetricGetResult
 
+class FlatBufferError(Exception):
+    pass
 
 #record types used by irondb in flatbuffer data
 #to determine data type
@@ -32,7 +34,7 @@ def metric_find_results(content):
             array.append(entry)
         return array
     except Exception as e:
-        pass
+        raise FlatBufferError(e)
     return None
 
 def metric_get_results(content):
@@ -64,5 +66,5 @@ def metric_get_results(content):
         return_dict["series"] = names_dict
         return return_dict
     except Exception as e:
-        pass
+        raise FlatBufferError(e)
     return None

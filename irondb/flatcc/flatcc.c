@@ -206,8 +206,15 @@ initflatcc(void)
         INITERROR;
     struct flatcc_modstate *st = GETSTATE(module);
 
-    st->error_type = PyErr_NewException("flatcc.Error", NULL, NULL);
+    st->error_type = PyErr_NewException("flatcc.FlatBufferError", NULL, NULL);
     if (st->error_type == NULL) {
+        Py_DECREF(module);
+        INITERROR;
+    }
+
+    Py_INCREF(st->error_type);
+    if (PyModule_AddObject(module, "FlatBufferError", st->error_type) != 0) {
+        Py_DECREF(st->error_type);
         Py_DECREF(module);
         INITERROR;
     }
