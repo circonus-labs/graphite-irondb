@@ -3,18 +3,8 @@ import flatbuffers
 from metrics.MetricSearchResultList import MetricSearchResultList
 from metrics.MetricGetResult import MetricGetResult
 
-try:
-    from django.core.exceptions import ImproperlyConfigured
-except ImportError:
-    ImproperlyConfigured = ImportError
-
-try:
-    from graphite.logger import log
-except ImproperlyConfigured:
-    class Log(object):
-        def info(self, msg):
-            print(msg)
-    log = Log()
+class FlatBufferError(Exception):
+    pass
 
 #record types used by irondb in flatbuffer data
 #to determine data type
@@ -44,7 +34,7 @@ def metric_find_results(content):
             array.append(entry)
         return array
     except Exception as e:
-        log.info(e)
+        raise FlatBufferError(e)
     return None
 
 def metric_get_results(content):
@@ -76,5 +66,5 @@ def metric_get_results(content):
         return_dict["series"] = names_dict
         return return_dict
     except Exception as e:
-        log.info(e)
+        raise FlatBufferError(e)
     return None
