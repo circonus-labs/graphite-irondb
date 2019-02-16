@@ -8,6 +8,10 @@ try:
     from json.decoder import JSONDecodeError
 except ImportError:
     JSONDecodeError = ValueError
+try:
+    from urlparse import urlparse, urlunparse
+except ImportError:
+    from urllib.parse import urlparse, urlunparse
 
 import requests
 import django
@@ -33,6 +37,16 @@ except ImportError:
     log.info("IRONdb Using pure Python Flatbuffer module")
 log.info(irondb_flatbuf)
 
+
+def strip_prefix(path):
+    prefix = None
+    url = list(urlparse(path))
+    path = [s for s in url[2].split('/') if s]
+    # '', 'find', <account id>, <prefix?>, <endpoint>, ''?
+    if len(path) == 4:
+        prefix = path.pop(-2)
+    url[2] = '/'.join(path)
+    return urlunparse(url), prefix
 
 class URLs(object):
     def __init__(self, hosts):
@@ -61,11 +75,11 @@ class URLs(object):
 
     @property
     def tag_cats(self):
-        return '{0}/tag_cats/'.format(self.host).replace('/graphite/', '/find/', 1)
+        return strip_prefix('{0}/tag_cats/'.format(self.host).replace('/graphite/', '/find/', 1))
 
     @property
     def tag_vals(self):
-        return '{0}/tag_vals/'.format(self.host).replace('/graphite/', '/find/', 1)
+        return strip_prefix('{0}/tag_vals/'.format(self.host).replace('/graphite/', '/find/', 1))
 
     @property
     def host_count(self):
@@ -456,13 +470,19 @@ class IRONdbTagFetcher(BaseTagDB):
         return [series['name'] for series in tag_series]
 
     def list_tags(self, tagFilter=None, limit=None, requestContext=None):
-        query = 'and(*:*)'
-        tag_cats = self._request(urls.tag_cats, query)
+        query = {'query': 'and(*:*)'}
+        url, prefix = urls.tag_cats
+        if prefix:
+            query['prefix'] = prefix
+        tag_cats = self._request(url, query)
         return [{'tag': tag} for tag in tag_cats]
 
     def get_tag(self, tag, valueFilter=None, limit=None, requestContext=None):
         query = {'query': 'and(*:*)', 'category': tag}
-        tag_vals = self._request(urls.tag_vals, query)
+        url, prefix = urls.tag_vals
+        if prefix:
+            query['prefix'] = prefix
+        tag_vals = self._request(url, query)
         if not tag_vals:
             return None
         res = []
