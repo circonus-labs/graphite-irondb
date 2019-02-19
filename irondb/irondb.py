@@ -324,6 +324,9 @@ class IRONdbFinder(BaseFinder):
                 except irondb_flatbuf.FlatBufferError as ex:
                     # flatbuffer error, try again
                     log.debug("IRONdbFinder.fetch FlatBufferError %s" % ex)
+                except JSONDecodeError as ex:
+                    # json error, try again
+                    log.debug("IRONdbFinder.fetch JSONDecodeError %s" % ex)
                 except requests.exceptions.ReadTimeout as ex:
                     # up node that simply timed out is a failure
                     log.debug("IRONdbFinder.fetch ReadTimeout %s" % ex)
@@ -400,6 +403,9 @@ class IRONdbFinder(BaseFinder):
             except irondb_flatbuf.FlatBufferError as ex:
                 # flatbuffer error, try again
                 log.debug("IRONdbFinder.find_nodes FlatBufferError %s" % ex)
+            except JSONDecodeError as ex:
+                # json error, try again
+                log.debug("IRONdbFinder.find_nodes JSONDecodeError %s" % ex)
             except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
                 log.debug("IRONdbFinder.find_nodes ReadTimeout %s" % ex)
@@ -454,6 +460,9 @@ class IRONdbTagFetcher(BaseTagDB):
             except requests.exceptions.ConnectTimeout as ex:
                 # on down nodes, try again on another node until "tries"
                 log.debug("IRONdbTagFetcher.%s ConnectTimeout %s" % (source, ex))
+            except JSONDecodeError as ex:
+                # json error, try again
+                log.debug("IRONdbTagFetcher.%s JSONDecodeError %s" % (source, ex))
             except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
                 log.debug("IRONdbTagFetcher.%s ReadTimeout %s" % (source, ex))
