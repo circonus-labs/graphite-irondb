@@ -136,3 +136,4 @@ Changelog
 * **0.0.15** (2018-09-14): `IRONDB_QUERY_LOG` support
 * **0.0.16** (2018-12-06): Improve error handling. Fix tag categories
 * **0.0.17** (2019-01-23): Fix flatcc native Flatbuffer module
+* **0.0.18** (2019-02-20): Improve FlatBuffers support. Fix metric prefix handling. Use Graphite error log
