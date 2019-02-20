@@ -324,6 +324,9 @@ class IRONdbFinder(BaseFinder):
                 except irondb_flatbuf.FlatBufferError as ex:
                     # flatbuffer error, try again
                     log.debug("IRONdbFinder.fetch FlatBufferError %s" % ex)
+                except JSONDecodeError as ex:
+                    # json error, try again
+                    log.debug("IRONdbFinder.fetch JSONDecodeError %s" % ex)
                 except requests.exceptions.ReadTimeout as ex:
                     # up node that simply timed out is a failure
                     log.debug("IRONdbFinder.fetch ReadTimeout %s" % ex)
@@ -400,6 +403,9 @@ class IRONdbFinder(BaseFinder):
             except irondb_flatbuf.FlatBufferError as ex:
                 # flatbuffer error, try again
                 log.debug("IRONdbFinder.find_nodes FlatBufferError %s" % ex)
+            except JSONDecodeError as ex:
+                # json error, try again
+                log.debug("IRONdbFinder.find_nodes JSONDecodeError %s" % ex)
             except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
                 log.debug("IRONdbFinder.find_nodes ReadTimeout %s" % ex)
@@ -432,7 +438,11 @@ class IRONdbTagFetcher(BaseTagDB):
         super(IRONdbTagFetcher, self).__init__(settings, *args, **kwargs)
         IRONdbLocalSettings.load(self)
 
-    def _request(self, url, query):
+    def _request(self, url, query, flatbuffers=False):
+        tag_headers = self.headers
+        if flatbuffers:
+            tag_headers = copy.deepcopy(tag_headers)
+            tag_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
         if not isinstance(query, dict):
             query = {'query': query}
         source = ""
@@ -441,10 +451,13 @@ class IRONdbTagFetcher(BaseTagDB):
         tries = self.max_retries
         for i in range(0, min(urls.host_count, tries)):
             try:
-                r = requests.get(url, params=query, headers=self.headers,
+                r = requests.get(url, params=query, headers=tag_headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                 r.raise_for_status()
-                r = r.json()
+                if flatbuffers:
+                    r = irondb_flatbuf.metric_find_results(r.content)
+                else:
+                    r = r.json()
                 if settings.DEBUG:
                     log.debug("IRONdbTagFetcher.%s, result: %s" % (source, json.dumps(r)))
                 return r
@@ -454,6 +467,12 @@ class IRONdbTagFetcher(BaseTagDB):
             except requests.exceptions.ConnectTimeout as ex:
                 # on down nodes, try again on another node until "tries"
                 log.debug("IRONdbTagFetcher.%s ConnectTimeout %s" % (source, ex))
+            except irondb_flatbuf.FlatBufferError as ex:
+                # flatbuffer error, try again
+                log.debug("IRONdbTagFetcher.%s FlatBufferError %s" % (source, ex))
+            except JSONDecodeError as ex:
+                # json error, try again
+                log.debug("IRONdbTagFetcher.%s JSONDecodeError %s" % (source, ex))
             except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
                 log.debug("IRONdbTagFetcher.%s ReadTimeout %s" % (source, ex))
@@ -466,7 +485,7 @@ class IRONdbTagFetcher(BaseTagDB):
 
     def _find_series(self, tags, requestContext=None):
         query = ','.join(tags)
-        tag_series = self._request(urls.tags, query)
+        tag_series = self._request(urls.tags, query, True)
         return [series['name'] for series in tag_series]
 
     def list_tags(self, tagFilter=None, limit=None, requestContext=None):
@@ -487,7 +506,7 @@ class IRONdbTagFetcher(BaseTagDB):
             return None
         res = []
         for val in tag_vals:
-            tag_series = self._request(urls.tags, '%s=%s' % (tag, val))
+            tag_series = self._request(urls.tags, '%s=%s' % (tag, val), True)
             if not tag_series:
                 return None
             tag_count = len(tag_series)
