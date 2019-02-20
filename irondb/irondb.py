@@ -202,23 +202,23 @@ class IRONdbMeasurementFetcher(object):
                         break
                     except requests.exceptions.ConnectionError as ex:
                         # on down nodes, retry on another up to "tries" times
-                        log.debug("IRONdbMeasurementFetcher.fetch ConnectionError %s" % ex)
+                        log.exception("IRONdbMeasurementFetcher.fetch ConnectionError %s" % ex)
                     except requests.exceptions.ConnectTimeout as ex:
                         # on down nodes, retry on another up to "tries" times
-                        log.debug("IRONdbMeasurementFetcher.fetch ConnectTimeout %s" % ex)
+                        log.exception("IRONdbMeasurementFetcher.fetch ConnectTimeout %s" % ex)
                     except irondb_flatbuf.FlatBufferError as ex:
                         # flatbuffer error, try again
-                        log.debug("IRONdbMeasurementFetcher.fetch FlatBufferError %s" % ex)
+                        log.exception("IRONdbMeasurementFetcher.fetch FlatBufferError %s" % ex)
                     except JSONDecodeError as ex:
                         # json error, try again
-                        log.debug("IRONdbMeasurementFetcher.fetch JSONDecodeError %s" % ex)
+                        log.exception("IRONdbMeasurementFetcher.fetch JSONDecodeError %s" % ex)
                     except requests.exceptions.ReadTimeout as ex:
                         # read timeouts are failures, stop immediately
-                        log.debug("IRONdbMeasurementFetcher.fetch ReadTimeout %s" % ex)
+                        log.exception("IRONdbMeasurementFetcher.fetch ReadTimeout %s" % ex)
                         break
                     except requests.exceptions.HTTPError as ex:
                         # http status code errors are failures, stop immediately
-                        log.debug("IRONdbMeasurementFetcher.fetch HTTPError %s %s" % (ex, d.content))
+                        log.exception("IRONdbMeasurementFetcher.fetch HTTPError %s %s" % (ex, d.content))
                         break
             if settings.DEBUG:
                 log.debug("IRONdbMeasurementFetcher.fetch results: %s" % json.dumps(self.results))
@@ -317,23 +317,23 @@ class IRONdbFinder(BaseFinder):
                     break
                 except requests.exceptions.ConnectionError as ex:
                     # on down nodes, try again on another node until "tries"
-                    log.debug("IRONdbFinder.fetch ConnectionError %s" % ex)
+                    log.exception("IRONdbFinder.fetch ConnectionError %s" % ex)
                 except requests.exceptions.ConnectTimeout as ex:
                     # on down nodes, try again on another node until "tries"
-                    log.debug("IRONdbFinder.fetch ConnectTimeout %s" % ex)
+                    log.exception("IRONdbFinder.fetch ConnectTimeout %s" % ex)
                 except irondb_flatbuf.FlatBufferError as ex:
                     # flatbuffer error, try again
-                    log.debug("IRONdbFinder.fetch FlatBufferError %s" % ex)
+                    log.exception("IRONdbFinder.fetch FlatBufferError %s" % ex)
                 except JSONDecodeError as ex:
                     # json error, try again
-                    log.debug("IRONdbFinder.fetch JSONDecodeError %s" % ex)
+                    log.exception("IRONdbFinder.fetch JSONDecodeError %s" % ex)
                 except requests.exceptions.ReadTimeout as ex:
                     # up node that simply timed out is a failure
-                    log.debug("IRONdbFinder.fetch ReadTimeout %s" % ex)
+                    log.exception("IRONdbFinder.fetch ReadTimeout %s" % ex)
                     break
                 except requests.exceptions.HTTPError as ex:
                     # http status code errors are failures, stop immediately
-                    log.debug("IRONdbFinder.fetch HTTPError %s %s" % (ex, r.content))
+                    log.exception("IRONdbFinder.fetch HTTPError %s %s" % (ex, r.content))
                     break
 
             all_names[pattern] = names
@@ -396,23 +396,23 @@ class IRONdbFinder(BaseFinder):
                 break
             except requests.exceptions.ConnectionError as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbFinder.find_nodes ConnectionError %s" % ex)
+                log.exception("IRONdbFinder.find_nodes ConnectionError %s" % ex)
             except requests.exceptions.ConnectTimeout as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbFinder.find_nodes ConnectTimeout %s" % ex)
+                log.exception("IRONdbFinder.find_nodes ConnectTimeout %s" % ex)
             except irondb_flatbuf.FlatBufferError as ex:
                 # flatbuffer error, try again
-                log.debug("IRONdbFinder.find_nodes FlatBufferError %s" % ex)
+                log.exception("IRONdbFinder.find_nodes FlatBufferError %s" % ex)
             except JSONDecodeError as ex:
                 # json error, try again
-                log.debug("IRONdbFinder.find_nodes JSONDecodeError %s" % ex)
+                log.exception("IRONdbFinder.find_nodes JSONDecodeError %s" % ex)
             except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
-                log.debug("IRONdbFinder.find_nodes ReadTimeout %s" % ex)
+                log.exception("IRONdbFinder.find_nodes ReadTimeout %s" % ex)
                 break
             except requests.exceptions.HTTPError as ex:
                 # http status code errors are failures, stop immediately
-                log.debug("IRONdbFinder.find_nodes HTTPError %s %s" % (ex, r.content))
+                log.exception("IRONdbFinder.find_nodes HTTPError %s %s" % (ex, r.content))
                 break
         if settings.DEBUG:
             log.debug("IRONdbFinder.find_nodes, result: %s" % json.dumps(names))
@@ -463,23 +463,23 @@ class IRONdbTagFetcher(BaseTagDB):
                 return r
             except requests.exceptions.ConnectionError as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbTagFetcher.%s ConnectionError %s" % (source, ex))
+                log.exception("IRONdbTagFetcher.%s ConnectionError %s" % (source, ex))
             except requests.exceptions.ConnectTimeout as ex:
                 # on down nodes, try again on another node until "tries"
-                log.debug("IRONdbTagFetcher.%s ConnectTimeout %s" % (source, ex))
+                log.exception("IRONdbTagFetcher.%s ConnectTimeout %s" % (source, ex))
             except irondb_flatbuf.FlatBufferError as ex:
                 # flatbuffer error, try again
-                log.debug("IRONdbTagFetcher.%s FlatBufferError %s" % (source, ex))
+                log.exception("IRONdbTagFetcher.%s FlatBufferError %s" % (source, ex))
             except JSONDecodeError as ex:
                 # json error, try again
-                log.debug("IRONdbTagFetcher.%s JSONDecodeError %s" % (source, ex))
+                log.exception("IRONdbTagFetcher.%s JSONDecodeError %s" % (source, ex))
             except requests.exceptions.ReadTimeout as ex:
                 # up node that simply timed out is a failure
-                log.debug("IRONdbTagFetcher.%s ReadTimeout %s" % (source, ex))
+                log.exception("IRONdbTagFetcher.%s ReadTimeout %s" % (source, ex))
                 break
             except requests.exceptions.HTTPError as ex:
                 # http status code errors are failures, stop immediately
-                log.debug("IRONdbTagFetcher.%s HTTPError %s %s" % (source, ex, r.content))
+                log.exception("IRONdbTagFetcher.%s HTTPError %s %s" % (source, ex, r.content))
                 break
         return ()
 
