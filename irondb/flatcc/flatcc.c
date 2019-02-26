@@ -11,11 +11,11 @@
 #define GRAPHITE_RECORD_DATA_POINT_TYPE_NULL    0
 #define GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE  1
 
-#define _FB_METRIC(m, ns, s)                    metrics_ns(ns##_##s(m))
-#define SET_METRIC_BOOL(d, m, ns, s)            _pydict_set(d, #s, PyBool_FromLong(_FB_METRIC(m, ns, s)))
-#define SET_METRIC_LONG_ALT(d, alt_s, m, ns, s) _pydict_set(d, #alt_s, PyLong_FromLong(_FB_METRIC(m, ns, s)))
+#define _FB_METRIC(m, ns, s, def)               metrics_ns(ns##_##s##_is_present(m))? metrics_ns(ns##_##s(m)) : def
+#define SET_METRIC_BOOL(d, m, ns, s)            _pydict_set(d, #s, PyBool_FromLong(_FB_METRIC(m, ns, s, 0)))
+#define SET_METRIC_LONG_ALT(d, alt_s, m, ns, s) _pydict_set(d, #alt_s, PyLong_FromLong(_FB_METRIC(m, ns, s, 0)))
 #define SET_METRIC_LONG(d, m, ns, s)            SET_METRIC_LONG_ALT(d, s, m, ns, s)
-#define SET_METRIC_STR_ALT(d, alt_s, m, ns, s)  _pydict_set(d, #alt_s, PyString_FromString(_FB_METRIC(m, ns, s)))
+#define SET_METRIC_STR_ALT(d, alt_s, m, ns, s)  _pydict_set(d, #alt_s, PyString_FromString(_FB_METRIC(m, ns, s, "")))
 #define SET_METRIC_STR(d, m, ns, s)             SET_METRIC_STR_ALT(d, s, m, ns, s)
 
 static void _pydict_set(PyObject *dict, const char *strkey, PyObject *pyval) {
