@@ -116,6 +116,15 @@ other failures are not retried to prevent thundering herd problems.
 all queries to the IRONdb backend nodes into the info.log if this is set
 to `True`.
 
+`IRONDB_ZIPKIN_ENABLED` is optional and will default to False. Will send
+Zipkin headers to the IRONdb nodes that are being queried.
+
+`IRONDB_ZIPKIN_EVENT_TRACE_LEVEL` is optional and will default to 0. If
+`IRONDB_ZIPKIN_ENABLED` is set to False, this flag will do nothing. If it
+is set to True, this will send headers to the IRONdb nodes that will
+enable additional event tracing. Right now, the only acceptable values
+are `0` (off) and `1` (basic tracing).
+
 Changelog
 ---------
 

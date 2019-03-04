@@ -4,6 +4,8 @@ import time
 import threading
 import copy
 import json
+import os
+import binascii
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
@@ -148,12 +150,34 @@ class IRONdbLocalSettings(object):
             self.query_log_enabled = getattr(settings, 'IRONDB_QUERY_LOG')
         except AttributeError:
             self.query_log_enabled = False
+        try:
+            self.zipkin_enabled = getattr(settings, 'IRONDB_ZIPKIN_ENABLED')
+        except AttributeError:
+            self.zipkin_enabled = False
+        try:
+            tl = getattr(settings, 'IRONDB_ZIPKIN_EVENT_TRACE_LEVEL')
+            if tl:
+                self.zipkin_event_trace_level = int(tl)
+                if self.zipkin_event_trace_level < 0:
+                    # Somebody tried to get cute, just disable it
+                    log.info("can't set IRONDB_ZIPKIN_EVENT_TRACE_LEVEL below zero, setting to zero\n")
+                    self.zipkin_event_trace_level = 0
+                elif self.zipkin_event_trace_level > 1:
+                    # We only support level 1 for now... may add support
+                    # for higher levels later
+                    log.info("can't set IRONDB_ZIPKIN_EVENT_TRACE_LEVEL above one, setting to one\n")
+                    self.zipkin_event_trace_level = 1
+            else:
+                self.zipkin_event_trace_level = 0
+        except AttributeError:
+            self.zipkin_event_trace_level = 0
 
 
 class IRONdbMeasurementFetcher(object):
-    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout', 'retries')
+    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout', 'retries',
+                 'zipkin_enabled', 'zipkin_event_trace_level')
 
-    def __init__(self, headers, timeout, connection_timeout, db_rollups, retries):
+    def __init__(self, headers, timeout, connection_timeout, db_rollups, retries, zipkin_enabled, zipkin_event_trace_level):
         self.leaves = list()
         self.lock = threading.Lock()
         self.fetched = False
@@ -163,6 +187,8 @@ class IRONdbMeasurementFetcher(object):
         self.connection_timeout = connection_timeout
         self.database_rollups = db_rollups
         self.retries = retries
+        self.zipkin_enabled = zipkin_enabled
+        self.zipkin_event_trace_level = zipkin_event_trace_level
         if headers:
             self.headers = headers
 
@@ -186,7 +212,14 @@ class IRONdbMeasurementFetcher(object):
                         query_start = time.gmtime()
                         node = urls.series_multi
                         data_type = "json"
-                        d = requests.post(urls.series_multi, json = params, headers = self.headers,
+                        send_headers = copy.deepcopy(self.headers)
+                        if self.zipkin_enabled == True:
+                            traceheader = binascii.hexlify(os.urandom(8))
+                            send_headers['X-B3-TraceId'] = traceheader
+                            send_headers['X-B3-SpanId'] = traceheader
+                            if self.zipkin_event_trace_level == 1:
+                              send_headers['X-Mtev-Trace-Event'] = '1'
+                        d = requests.post(urls.series_multi, json = params, headers = send_headers,
                                           timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                         d.raise_for_status()
                         if 'content-type' in d.headers and d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
@@ -255,7 +288,9 @@ class IRONdbReader(object):
 
 class IRONdbFinder(BaseFinder):
     __slots__ = ('disabled', 'batch_size', 'database_rollups', 'timeout',
-                 'connection_timeout', 'headers', 'disabled', 'max_retries')
+                 'connection_timeout', 'headers', 'disabled', 'max_retries',
+                 'query_log_enabled', 'zipkin_enabled',
+                 'zipkin_event_trace_level')
 
     def __init__(self, config=None):
         global urls
@@ -268,6 +303,8 @@ class IRONdbFinder(BaseFinder):
             self.disabled = False
             self.max_retries = 2
             self.query_log_enabled = False
+            self.zipkin_enabled = False
+            self.zipkin_event_trace_level = 0
             if 'urls' in config['irondb']:
                 urls = config['irondb']['urls']
             else:
@@ -302,6 +339,12 @@ class IRONdbFinder(BaseFinder):
                     node = urls.names
                     query_start = time.gmtime()
                     data_type = "json"
+                    if self.zipkin_enabled == True:
+                        traceheader = binascii.hexlify(os.urandom(8))
+                        name_headers['X-B3-TraceId'] = traceheader
+                        name_headers['X-B3-SpanId'] = traceheader
+                        if self.zipkin_event_trace_level == 1:
+                            name_headers['X-Mtev-Trace-Event'] = '1'
                     r = requests.get(node, params={'query': pattern}, headers=name_headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                     r.raise_for_status()
@@ -340,7 +383,8 @@ class IRONdbFinder(BaseFinder):
 
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
-        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
+        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries,
+                                           self.zipkin_enabled, self.zipkin_event_trace_level)
         for pattern, names in all_names.items():
             for name in names:
                 if 'leaf' in name and 'leaf_data' in name:
@@ -384,6 +428,12 @@ class IRONdbFinder(BaseFinder):
         name_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
         for i in range(0, min(urls.host_count, tries)):
             try:
+                if self.zipkin_enabled == True:
+                    traceheader = binascii.hexlify(os.urandom(8))
+                    name_headers['X-B3-TraceId'] = traceheader
+                    name_headers['X-B3-SpanId'] = traceheader
+                    if self.zipkin_event_trace_level == 1:
+                        name_headers['X-Mtev-Trace-Event'] = '1'
                 r = requests.get(urls.names, params={'query': query.pattern}, headers=name_headers,
                                  timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                 r.raise_for_status()
@@ -421,7 +471,8 @@ class IRONdbFinder(BaseFinder):
         # so we can do these in batches.
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
-        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries)
+        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries,
+                                           self.zipkin_enabled, self.zipkin_event_trace_level)
 
         for name in names:
             if 'leaf' in name and 'leaf_data' in name:
@@ -439,9 +490,8 @@ class IRONdbTagFetcher(BaseTagDB):
         IRONdbLocalSettings.load(self)
 
     def _request(self, url, query, flatbuffers=False):
-        tag_headers = self.headers
+        tag_headers = copy.deepcopy(self.headers)
         if flatbuffers:
-            tag_headers = copy.deepcopy(tag_headers)
             tag_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
         if not isinstance(query, dict):
             query = {'query': query}
@@ -451,6 +501,12 @@ class IRONdbTagFetcher(BaseTagDB):
         tries = self.max_retries
         for i in range(0, min(urls.host_count, tries)):
             try:
+                if self.zipkin_enabled == True:
+                    traceheader = binascii.hexlify(os.urandom(8))
+                    tag_headers['X-B3-TraceId'] = traceheader
+                    tag_headers['X-B3-SpanId'] = traceheader
+                    if self.zipkin_event_trace_level == 1:
+                        tag_headers['X-Mtev-Trace-Event'] = '1'
                 r = requests.get(url, params=query, headers=tag_headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                 r.raise_for_status()
