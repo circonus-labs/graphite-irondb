@@ -160,12 +160,12 @@ class IRONdbLocalSettings(object):
                 self.zipkin_event_trace_level = int(tl)
                 if self.zipkin_event_trace_level < 0:
                     # Somebody tried to get cute, just disable it
-                    log.info("can't set IRONDB_ZIPKIN_EVENT_TRACE_LEVEL below zero, setting to zero\n")
+                    log.info("Can't set IRONDB_ZIPKIN_EVENT_TRACE_LEVEL below zero, setting to zero\n")
                     self.zipkin_event_trace_level = 0
                 elif self.zipkin_event_trace_level > 1:
                     # We only support level 1 for now... may add support
                     # for higher levels later
-                    log.info("can't set IRONDB_ZIPKIN_EVENT_TRACE_LEVEL above one, setting to one\n")
+                    log.info("Can't set IRONDB_ZIPKIN_EVENT_TRACE_LEVEL above one, setting to one\n")
                     self.zipkin_event_trace_level = 1
             else:
                 self.zipkin_event_trace_level = 0
@@ -218,7 +218,7 @@ class IRONdbMeasurementFetcher(object):
                             send_headers['X-B3-TraceId'] = traceheader
                             send_headers['X-B3-SpanId'] = traceheader
                             if self.zipkin_event_trace_level == 1:
-                              send_headers['X-Mtev-Trace-Event'] = '1'
+                                send_headers['X-Mtev-Trace-Event'] = '1'
                         d = requests.post(urls.series_multi, json = params, headers = send_headers,
                                           timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                         d.raise_for_status()
