@@ -27,7 +27,7 @@ def build_ext(argv, setup_args):
 
 setup_args=dict(
     name='graphite-irondb',
-    version='0.0.18',
+    version='0.0.19',
     url='https://github.com/circonus-labs/graphite-irondb',
     license='BSD',
     author='Riley Berton',
