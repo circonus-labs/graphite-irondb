@@ -123,7 +123,9 @@ Zipkin headers to the IRONdb nodes that are being queried.
 `IRONDB_ZIPKIN_ENABLED` is set to False, this flag will do nothing. If it
 is set to True, this will send headers to the IRONdb nodes that will
 enable additional event tracing. Right now, the only acceptable values
-are `0` (off) and `1` (basic tracing).
+are `0` (off), `1` (basic tracing), and `2` (detailed tracing). `2` can
+potentially cause performance issues - use this level sparingly. Only
+recommended for when trying to debug something specific.
 
 Changelog
 ---------
