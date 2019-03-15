@@ -217,6 +217,7 @@ class IRONdbMeasurementFetcher(object):
                             traceheader = binascii.hexlify(os.urandom(8))
                             send_headers['X-B3-TraceId'] = traceheader
                             send_headers['X-B3-SpanId'] = traceheader
+                            send_headers['X-B3-Sampled'] = '1'
                             if self.zipkin_event_trace_level == 1:
                                 send_headers['X-Mtev-Trace-Event'] = '1'
                             elif self.zipkin_event_trace_level == 2:
@@ -345,6 +346,7 @@ class IRONdbFinder(BaseFinder):
                         traceheader = binascii.hexlify(os.urandom(8))
                         name_headers['X-B3-TraceId'] = traceheader
                         name_headers['X-B3-SpanId'] = traceheader
+                        name_headers['X-B3-Sampled'] = '1'
                         if self.zipkin_event_trace_level == 1:
                             name_headers['X-Mtev-Trace-Event'] = '1'
                         if self.zipkin_event_trace_level == 2:
@@ -436,6 +438,7 @@ class IRONdbFinder(BaseFinder):
                     traceheader = binascii.hexlify(os.urandom(8))
                     name_headers['X-B3-TraceId'] = traceheader
                     name_headers['X-B3-SpanId'] = traceheader
+                    name_headers['X-B3-Sampled'] = '1'
                     if self.zipkin_event_trace_level == 1:
                         name_headers['X-Mtev-Trace-Event'] = '1'
                     elif self.zipkin_event_trace_level == 2:
@@ -511,6 +514,7 @@ class IRONdbTagFetcher(BaseTagDB):
                     traceheader = binascii.hexlify(os.urandom(8))
                     tag_headers['X-B3-TraceId'] = traceheader
                     tag_headers['X-B3-SpanId'] = traceheader
+                    tag_headers['X-B3-Sampled'] = '1'
                     if self.zipkin_event_trace_level == 1:
                         tag_headers['X-Mtev-Trace-Event'] = '1'
                     elif self.zipkin_event_trace_level == 2:
