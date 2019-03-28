@@ -162,11 +162,11 @@ class IRONdbLocalSettings(object):
                     # Somebody tried to get cute, just disable it
                     log.info("Can't set IRONDB_ZIPKIN_EVENT_TRACE_LEVEL below zero, setting to zero\n")
                     self.zipkin_event_trace_level = 0
-                elif self.zipkin_event_trace_level > 1:
+                elif self.zipkin_event_trace_level > 2:
                     # We only support level 1 for now... may add support
                     # for higher levels later
-                    log.info("Can't set IRONDB_ZIPKIN_EVENT_TRACE_LEVEL above one, setting to one\n")
-                    self.zipkin_event_trace_level = 1
+                    log.info("Can't set IRONDB_ZIPKIN_EVENT_TRACE_LEVEL above two... setting to two\n")
+                    self.zipkin_event_trace_level = 2
             else:
                 self.zipkin_event_trace_level = 0
         except AttributeError:
@@ -219,6 +219,8 @@ class IRONdbMeasurementFetcher(object):
                             send_headers['X-B3-SpanId'] = traceheader
                             if self.zipkin_event_trace_level == 1:
                                 send_headers['X-Mtev-Trace-Event'] = '1'
+                            elif self.zipkin_event_trace_level == 2:
+                                send_headers['X-Mtev-Trace-Event'] = '2'
                         d = requests.post(urls.series_multi, json = params, headers = send_headers,
                                           timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                         d.raise_for_status()
@@ -345,6 +347,8 @@ class IRONdbFinder(BaseFinder):
                         name_headers['X-B3-SpanId'] = traceheader
                         if self.zipkin_event_trace_level == 1:
                             name_headers['X-Mtev-Trace-Event'] = '1'
+                        if self.zipkin_event_trace_level == 2:
+                            name_headers['X-Mtev-Trace-Event'] = '2'
                     r = requests.get(node, params={'query': pattern}, headers=name_headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                     r.raise_for_status()
@@ -434,6 +438,8 @@ class IRONdbFinder(BaseFinder):
                     name_headers['X-B3-SpanId'] = traceheader
                     if self.zipkin_event_trace_level == 1:
                         name_headers['X-Mtev-Trace-Event'] = '1'
+                    elif self.zipkin_event_trace_level == 2:
+                        name_headers['X-Mtev-Trace-Event'] = '2'
                 r = requests.get(urls.names, params={'query': query.pattern}, headers=name_headers,
                                  timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                 r.raise_for_status()
@@ -507,6 +513,8 @@ class IRONdbTagFetcher(BaseTagDB):
                     tag_headers['X-B3-SpanId'] = traceheader
                     if self.zipkin_event_trace_level == 1:
                         tag_headers['X-Mtev-Trace-Event'] = '1'
+                    elif self.zipkin_event_trace_level == 2:
+                        tag_headers['X-Mtev-Trace-Event'] = '2'
                 r = requests.get(url, params=query, headers=tag_headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                 r.raise_for_status()
