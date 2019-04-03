@@ -196,6 +196,9 @@ class IRONdbMeasurementFetcher(object):
         self.leaves.append({'leaf_name': leaf_name, 'leaf_data': leaf_data})
 
     def fetch(self, query_log, start_time, end_time):
+        if (len(self.leaves) == 0):
+            # nothing to fetch, we're done
+            return
         if (self.fetched == False):
             self.lock.acquire()
             # recheck in case we were waiting
