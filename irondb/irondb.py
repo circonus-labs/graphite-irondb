@@ -141,6 +141,10 @@ class IRONdbLocalSettings(object):
         except AttributeError:
             self.database_rollups = True
         try:
+            self.rollup_window = getattr(settings, 'IRONDB_ROLLUP_WINDOW')
+        except AttributeError:
+            self.rollup_window = (60 * 60 * 24 * 7 * 4) # one month
+        try:
             mr = getattr(settings, 'IRONDB_MAX_RETRIES')
             if mr:
                 self.max_retries = int(mr)
@@ -174,10 +178,10 @@ class IRONdbLocalSettings(object):
 
 
 class IRONdbMeasurementFetcher(object):
-    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'timeout', 'connection_timeout', 'retries',
+    __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'rollup_window', 'timeout', 'connection_timeout', 'retries',
                  'zipkin_enabled', 'zipkin_event_trace_level')
 
-    def __init__(self, headers, timeout, connection_timeout, db_rollups, retries, zipkin_enabled, zipkin_event_trace_level):
+    def __init__(self, headers, timeout, connection_timeout, db_rollups, rollup_window, retries, zipkin_enabled, zipkin_event_trace_level):
         self.leaves = list()
         self.lock = threading.Lock()
         self.fetched = False
@@ -186,6 +190,7 @@ class IRONdbMeasurementFetcher(object):
         self.timeout = timeout
         self.connection_timeout = connection_timeout
         self.database_rollups = db_rollups
+        self.rollup_window = rollup_window
         self.retries = retries
         self.zipkin_enabled = zipkin_enabled
         self.zipkin_event_trace_level = zipkin_event_trace_level
@@ -207,7 +212,11 @@ class IRONdbMeasurementFetcher(object):
                 params['names'] = self.leaves
                 params['start'] = start_time
                 params['end'] = end_time
-                params['database_rollups'] = self.database_rollups
+                now = int(time.time())
+                if start_time < (now - self.rollup_window):
+                    params['database_rollups'] = True
+                else:
+                    params['database_rollups'] = self.database_rollups
                 tries = self.retries
                 for i in range(0, min(urls.host_count, tries)):
                     try:
@@ -236,7 +245,8 @@ class IRONdbMeasurementFetcher(object):
                             self.fetched = True
 
                         result_count = len(self.results["series"]) if self.results else -1
-                        query_log.query_log(node, query_start, d.elapsed, result_count, json.dumps(params), "data", data_type, start_time, end_time)
+                        query_type = "rollup data" if params["database_rollups"] else "raw data"
+                        query_log.query_log(node, query_start, d.elapsed, result_count, json.dumps(params), query_type, data_type, start_time, end_time)
                         break
                     except requests.exceptions.ConnectionError as ex:
                         # on down nodes, retry on another up to "tries" times
@@ -390,7 +400,7 @@ class IRONdbFinder(BaseFinder):
 
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
-        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries,
+        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
                                            self.zipkin_enabled, self.zipkin_event_trace_level)
         for pattern, names in all_names.items():
             for name in names:
@@ -480,7 +490,7 @@ class IRONdbFinder(BaseFinder):
         # so we can do these in batches.
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
-        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.max_retries,
+        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
                                            self.zipkin_enabled, self.zipkin_event_trace_level)
 
         for name in names:
