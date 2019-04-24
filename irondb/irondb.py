@@ -429,7 +429,9 @@ class IRONdbFinder(BaseFinder):
         results = []
         for pattern, names in all_names.items():
             for name in names:
-                fetcher = name['fetcher']
+                fetcher = fetchers[0]
+                if 'fetcher' in name:
+                    fetcher = name['fetcher']
                 res = fetcher.series(name['name'])
                 if res is None:
                     continue
