@@ -427,6 +427,7 @@ class IRONdbFinder(BaseFinder):
         self.dispatchfetches(start_time, end_time)
 
         results = []
+        first_correction = False
         for pattern, names in all_names.items():
             for name in names:
                 fetcher = fetchers[0]
@@ -437,6 +438,22 @@ class IRONdbFinder(BaseFinder):
                     continue
 
                 time_info, values = res
+
+                # At least one series needs to have the right start time
+                # And to not be complete jerks we cull leading nulls, so on
+                # data fetches where everything has leading nulls, the start
+                # time in the graph can slide forward.  We need one anchor,
+                # it will be whatever series we see first.
+                if not first_correction:
+                    prepend = []
+                    # time_info is immutable, recreate it so we can muck with it
+                    time_info = [ time_info[0], time_info[1], time_info[2] ]
+                    while time_info[0] > start_time:
+                       time_info[0] -= time_info[2]
+                       prepend.append(None)
+                    if len(prepend) > 0:
+                       values = prepend + values
+                    first_correction = True
                 results.append({
                     'pathExpression': pattern,
                     'path' : name['name'],
