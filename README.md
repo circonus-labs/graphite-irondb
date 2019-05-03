@@ -149,3 +149,4 @@ Changelog
 * **0.0.17** (2019-01-23): Fix flatcc native Flatbuffer module
 * **0.0.18** (2019-02-20): Improve FlatBuffers support. Fix metric prefix handling. Use Graphite error log
 * **0.0.19** (2019-03-05): Improve FlatBuffer error handling. Add Zipkin header support
+* **0.0.20** (2019-05-03): Don't issue IRONdb series requests for empty find results, Add IRONDB_ROLLUP_WINDOW setting, Respect IRONDB_BATCH_SIZE setting, fix fetcher keyerror, use first start time when all series arrive late
