@@ -104,8 +104,6 @@ class IRONdbLocalSettings(object):
 
     def __init__(self):
         global urls
-        global fetchers
-        fetchers = []
         if urls is None:
             urls = getattr(settings, 'IRONDB_URLS')
             if not urls:
@@ -342,14 +340,14 @@ class IRONdbFinder(BaseFinder):
         log.info('******* IRONdb query -- node: %s, start: %s, result_count: %d, type: %s, format: %s, elapsed: %s\n\n  [%s, %s] "%s"\n'
                  % (node, qs, result_count, query_type, data_format, e, data_start, data_end, query))
 
-    def newfetcher(self, headers):
+    def newfetcher(self, fset, headers):
         fetcher = IRONdbMeasurementFetcher(headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
                                            self.zipkin_enabled, self.zipkin_event_trace_level)
-        fetchers.append(fetcher)
+        fset.append(fetcher)
         return fetcher
 
-    def dispatchfetches(self, start_time, end_time):
-        for fetcher in fetchers:
+    def dispatchfetches(self, fset, start_time, end_time):
+        for fetcher in fset:
             fetcher.fetch(self, start_time, end_time)
 
     def fetch(self, patterns, start_time, end_time, now=None, requestContext=None):
@@ -413,24 +411,25 @@ class IRONdbFinder(BaseFinder):
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
         in_this_batch = 0
-        fetcher = self.newfetcher(measurement_headers)
+        fset = []
+        fetcher = self.newfetcher(fset, measurement_headers)
         for pattern, names in all_names.items():
             for name in names:
                 if 'leaf' in name and 'leaf_data' in name:
                     if self.batch_size == 0 or in_this_batch >= self.batch_size:
                         in_this_batch = 0
-                        fetcher = self.newfetcher(measurement_headers)
+                        fetcher = self.newfetcher(fset, measurement_headers)
                     fetcher.add_leaf(name['name'], name['leaf_data'])
                     name['fetcher'] = fetcher
                     in_this_batch += 1
 
-        self.dispatchfetches(start_time, end_time)
+        self.dispatchfetches(fset, start_time, end_time)
 
         results = []
         first_correction = False
         for pattern, names in all_names.items():
             for name in names:
-                fetcher = fetchers[0]
+                fetcher = fset[0]
                 if 'fetcher' in name:
                     fetcher = name['fetcher']
                 res = fetcher.series(name['name'])
