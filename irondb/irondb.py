@@ -137,6 +137,10 @@ class IRONdbLocalSettings(object):
             self.headers = {}
         self.headers['X-Snowth-Timeout'] = str(self.timeout) + 'ms'
         try:
+            self.activity_tracking = getattr(settings, 'IRONDB_USE_ACTIVITY_TRACKING')
+        except AttributeError:
+            self.activity_tracking = True
+        try:
             self.database_rollups = getattr(settings, 'IRONDB_USE_DATABASE_ROLLUPS')
         except AttributeError:
             self.database_rollups = True
@@ -372,7 +376,11 @@ class IRONdbFinder(BaseFinder):
                             name_headers['X-Mtev-Trace-Event'] = '1'
                         if self.zipkin_event_trace_level == 2:
                             name_headers['X-Mtev-Trace-Event'] = '2'
-                    r = requests.get(node, params={'query': pattern}, headers=name_headers,
+                    name_params = {'query': pattern}
+                    if self.activity_tracking:
+                        name_params['activity_start_secs'] = start_time
+                        name_params['activity_end_secs'] = end_time
+                    r = requests.get(node, params=name_params, headers=name_headers,
                                      timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                     r.raise_for_status()
                     if r.headers['content-type'] == 'application/json':

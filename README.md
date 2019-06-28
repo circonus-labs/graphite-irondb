@@ -49,6 +49,7 @@ In your graphite's `local_settings.py`:
 
     IRONDB_BATCH_SIZE = 250
     IRONDB_USE_DATABASE_ROLLUPS = True
+    IRONDB_USE_ACTIVITY_TRACKING = True
     IRONDB_TIMEOUT_MS = 10000
     IRONDB_CONNECTION_TIMEOUT_MS = 3005
     IRONDB_MAX_RETRIES = 2
@@ -93,7 +94,7 @@ and manually approve it.
 used to perform multi-fetch from the IRONdb backend if you use graphs
 with wildcard expansions in the datapoints.
 
-`IRONDB_USE_DATABASE_ROLLUPS` is optional python boolean (True|False)
+`IRONDB_USE_DATABASE_ROLLUPS` is an optional Python boolean (True|False)
 and will default to True. IRONdb can automatically choose the "step"
 of the returned data if this param is set to True.  Calculation for
 "step" is based on the time span of the query.  If you set this to
@@ -102,6 +103,10 @@ return for all data.  This can result in slower renders as much more
 data will be returned than may be necessary for rendering.  However,
 some graphite functions (like summarize) require finer resolution data
 in order to group data properly.
+
+`IRONDB_USE_ACTIVITY_TRACKING` is an optional Python boolean (True|False)
+and will default to True. IRONdb supports tracking of metric activity without
+the expense of reading all known time series data to find active ranges.
 
 `IRONDB_TIMEOUT_MS` is optional and will default to 10000.  With IRONdb >= 0.9.8
 this will set an absolute timeout after which queries will be cut off.
@@ -149,5 +154,5 @@ Changelog
 * **0.0.17** (2019-01-23): Fix flatcc native Flatbuffer module
 * **0.0.18** (2019-02-20): Improve FlatBuffers support. Fix metric prefix handling. Use Graphite error log
 * **0.0.19** (2019-03-05): Improve FlatBuffer error handling. Add Zipkin header support
-* **0.0.20** (2019-05-03): Don't issue IRONdb series requests for empty find results, Add IRONDB_ROLLUP_WINDOW setting, Respect IRONDB_BATCH_SIZE setting, fix fetcher keyerror, use first start time when all series arrive late
+* **0.0.20** (2019-05-03): Don't issue IRONdb series requests for empty find results, Add `IRONDB_ROLLUP_WINDOW` setting, Respect `IRONDB_BATCH_SIZE` setting, fix fetcher keyerror, use first start time when all series arrive late
 * **0.0.21** (2019-05-14): Fix memory leak introduced in 0.0.20
