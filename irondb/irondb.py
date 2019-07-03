@@ -22,6 +22,7 @@ from django.conf import settings
 from graphite.intervals import Interval, IntervalSet
 from graphite.node import LeafNode, BranchNode
 from graphite.logger import log
+from graphite.finders.utils import FindQuery
 try:
     from graphite.finders.utils import BaseFinder
 except ImportError:
@@ -483,6 +484,10 @@ class IRONdbFinder(BaseFinder):
     # backwards compatible interface for older graphite-web installs
     def find_nodes(self, query):
         log.debug("IRONdbFinder.find_nodes, query: %s, max_retries: %d" % (query.pattern, self.max_retries))
+        metrics_expand = False
+        if query.pattern.endswith('.**'):
+            query.pattern = query.pattern[:-1]
+            metrics_expand = True
         names = {}
         tries = self.max_retries
         name_headers = copy.deepcopy(self.headers)
@@ -544,6 +549,10 @@ class IRONdbFinder(BaseFinder):
                 yield LeafNode(name['name'], reader)
             else:
                 yield BranchNode(name['name'])
+                if metrics_expand:
+                    query = FindQuery(name['name'] + '.**', None, None)
+                    for node in self.find_nodes(query):
+                        yield node
 
 
 class IRONdbTagFetcher(BaseTagDB):
