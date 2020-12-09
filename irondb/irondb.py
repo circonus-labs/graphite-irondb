@@ -154,7 +154,7 @@ class IRONdbLocalSettings(object):
             if mr:
                 self.max_retries = int(mr)
         except AttributeError:
-            self.max_retries = 2
+            self.max_retries = urls.host_count
         try:
             self.query_log_enabled = getattr(settings, 'IRONDB_QUERY_LOG')
         except AttributeError:
@@ -321,7 +321,6 @@ class IRONdbFinder(BaseFinder):
             self.connection_timeout = 3005
             self.headers = {}
             self.disabled = False
-            self.max_retries = 2
             self.query_log_enabled = False
             self.zipkin_enabled = False
             self.zipkin_event_trace_level = 0
@@ -332,6 +331,7 @@ class IRONdbFinder(BaseFinder):
             if 'batch_size' in config['irondb']:
                 self.batch_size = config['irondb']['batch_size']
             urls = URLs(urls)
+            self.max_retries = urls.host_count
         else:
             IRONdbLocalSettings.load(self)
 
