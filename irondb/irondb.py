@@ -223,7 +223,7 @@ class IRONdbMeasurementFetcher(object):
                 else:
                     params['database_rollups'] = self.database_rollups
                 tries = self.retries
-                for i in range(0, min(urls.host_count, tries)):
+                for i in range(0, max(urls.host_count, tries)):
                     try:
                         self.fetched = False
                         query_start = time.gmtime()
@@ -364,7 +364,7 @@ class IRONdbFinder(BaseFinder):
             tries = self.max_retries
             name_headers = copy.deepcopy(self.headers)
             name_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
-            for i in range(0, min(urls.host_count, tries)):
+            for i in range(0, max(urls.host_count, tries)):
                 try:
                     node = urls.names
                     query_start = time.gmtime()
@@ -492,7 +492,7 @@ class IRONdbFinder(BaseFinder):
         tries = self.max_retries
         name_headers = copy.deepcopy(self.headers)
         name_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
-        for i in range(0, min(urls.host_count, tries)):
+        for i in range(0, max(urls.host_count, tries)):
             try:
                 if self.zipkin_enabled == True:
                     traceheader = binascii.hexlify(os.urandom(8))
@@ -571,7 +571,7 @@ class IRONdbTagFetcher(BaseTagDB):
         if settings.DEBUG:
             source = sys._getframe().f_back.f_code.co_name
         tries = self.max_retries
-        for i in range(0, min(urls.host_count, tries)):
+        for i in range(0, max(urls.host_count, tries)):
             try:
                 if self.zipkin_enabled == True:
                     traceheader = binascii.hexlify(os.urandom(8))
