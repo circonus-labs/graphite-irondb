@@ -1,0 +1,12 @@
+{
+    "python.pythonPath": "/usr/bin/python2",
+    "python.analysis.extraPaths": [
+        "/opt/graphite/lib",
+        "/opt/graphite/webapp",
+        "/usr/local/lib/python2.7/dist-packages/",
+        "/usr/local/lib/python2.7/dist-packages/pip/_vendor/",
+        "/usr/local/lib/python2.7/dist-packages/graphite_irondb-0.0.21-py2.7-linux-x86_64.egg/"
+    ],
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true
+}
