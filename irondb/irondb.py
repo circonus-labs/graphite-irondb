@@ -174,6 +174,7 @@ class IRONdbLocalSettings(object):
             self.zipkin_enabled = getattr(settings, 'IRONDB_ZIPKIN_ENABLED')
         except AttributeError:
             self.zipkin_enabled = False
+            self.zipkin_event_trace_level = 0
         try:
             tl = getattr(settings, 'IRONDB_ZIPKIN_EVENT_TRACE_LEVEL')
             if tl:
@@ -194,9 +195,9 @@ class IRONdbLocalSettings(object):
 
 
 class HTTPClientSeq(object):
-    __slots__ = ('headers','params','fetched', 'data_type', 'result', 'zipkin_level', 'timeout')
+    __slots__ = ('headers', 'params', 'fetched', 'data_type', 'result', 'zipkin_level', 'timeout', 'caller')
 
-    def __init__(self, headers=None, params=None, zipkin_level=0, timeout=(0,0)):
+    def __init__(self, headers=None, params=None, zipkin_level=0, timeout=(0,0), caller=''):
         if headers == None:
             headers = {}
         self.headers = headers
@@ -208,8 +209,9 @@ class HTTPClientSeq(object):
         self.fetched = False
         self.data_type = 'json'
         self.result = {}
+        self.caller = caller
                                 
-    def request(self, query_log, start_time, end_time, node, method='GET', urls=None):
+    def request(self, query_log, start_time, end_time, method='GET', urls=None, caller=None):
         for url in urls:
             if self.zipkin_level > 0:
                 traceheader = binascii.hexlify(os.urandom(8))
@@ -220,7 +222,6 @@ class HTTPClientSeq(object):
                 elif self.zipkin_level == 2:
                     self.headers['X-Mtev-Trace-Event'] = '2'
             try:
-                log.info(url)
                 query_start = time.gmtime()        
                 d = requests.request(method, url, json=self.params, headers=self.headers, timeout=self.timeout)
                 d.raise_for_status()
@@ -233,27 +234,27 @@ class HTTPClientSeq(object):
                         self.result = d.json()
                 result_count = len(self.result["series"]) if self.result else -1
                 query_type = "rollup data" if self.params["database_rollups"] else "raw data"
-                query_log.query_log(node, query_start, d.elapsed, result_count, json.dumps(self.params), query_type, data_type, start_time, end_time)
+                query_log.query_log(url, query_start, d.elapsed, result_count, json.dumps(self.params), query_type, data_type, start_time, end_time)
                 break
             except requests.exceptions.ConnectionError as ex:
                 # on down nodes, retry on another up to "tries" times
-                log.exception("IRONdbMeasurementFetcher.fetch ConnectionError %s" % ex)
+                log.exception("%s ConnectionError %s" % (self.caller, ex))
             except requests.exceptions.ConnectTimeout as ex:
                 # on down nodes, retry on another up to "tries" times
-                log.exception("IRONdbMeasurementFetcher.fetch ConnectTimeout %s" % ex)
+                log.exception("%s ConnectTimeout %s" % (self.caller, ex))
             except irondb_flatbuf.FlatBufferError as ex:
                 # flatbuffer error, try again
-                log.exception("IRONdbMeasurementFetcher.fetch FlatBufferError %s" % ex)
+                log.exception("%s FlatBufferError %s" % (self.caller, ex))
             except JSONDecodeError as ex:
                 # json error, try again
-                log.exception("IRONdbMeasurementFetcher.fetch JSONDecodeError %s" % ex)
+                log.exception("%s JSONDecodeError %s" %(self.caller,  ex))
             except requests.exceptions.ReadTimeout as ex:
                 # read timeouts are failures, stop immediately
-                log.exception("IRONdbMeasurementFetcher.fetch ReadTimeout %s" % ex)
+                log.exception("%s ReadTimeout %s" % (self.caller, ex))
                 break
             except requests.exceptions.HTTPError as ex:
                 # http status code errors are failures, stop immediately
-                log.exception("IRONdbMeasurementFetcher.fetch HTTPError %s %s" % (ex, d.content))
+                log.exception("%s HTTPError %s %s" % (self.caller, ex, d.content))
                 break
         if self.fetched:
             return self.result
@@ -306,10 +307,10 @@ class IRONdbMeasurementFetcher(object):
                 send_headers = copy.deepcopy(self.headers)
                 q = HTTPClientSeq(headers=send_headers, params=params, 
                     zipkin_level=self.zipkin_event_trace_level, 
-                    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+                    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+                    caller='IRONdbMeasurementFetcher.fetch')
                 self.fetched = False
-                node = urls.series_multi
-                result = q.request(query_log, start_time, end_time, node, method='POST', urls=url_list)
+                result = q.request(query_log, start_time, end_time, method='POST', urls=url_list)
                 if result:
                     self.results = result
                     self.fetched = True
