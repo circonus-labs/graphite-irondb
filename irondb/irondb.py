@@ -193,6 +193,71 @@ class IRONdbLocalSettings(object):
             self.zipkin_event_trace_level = 0
 
 
+class HTTPClientSeq(object):
+    __slots__ = ('headers','params','fetched', 'data_type', 'result', 'zipkin_level', 'timeout')
+
+    def __init__(self, headers=None, params=None, zipkin_level=0, timeout=(0,0)):
+        if headers == None:
+            self.headers = {}
+        if params == None:
+            self.params = {}
+        self.zipkin_level = zipkin_level
+        self.timeout = timeout
+        self.fetched = False
+        self.data_type = 'json'
+        self.result = {}
+                                
+    def request(self, query_log, start_time, end_time, node, method='GET', urls=None):
+        for url in urls:
+            if self.zipkin_level > 0:
+                traceheader = binascii.hexlify(os.urandom(8))
+                self.headers['X-B3-TraceId'] = traceheader
+                self.headers['X-B3-SpanId'] = traceheader
+                if self.zipkin_level == 1:
+                    self.headers['X-Mtev-Trace-Event'] = '1'
+                elif self.zipkin_level == 2:
+                    self.headers['X-Mtev-Trace-Event'] = '2'
+            try:
+                query_start = time.gmtime()        
+                d = requests.request(method, url, json=self.params, headers=self.headers, timeout=self.timeout)
+                d.raise_for_status()
+                if d.status_code == 200:
+                    self.fetched = True
+                    if d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
+                        data_type = "flatbuffer"
+                        self.result = irondb_flatbuf.metric_get_results(d.content)
+                    else:
+                        self.result = d.json()
+                result_count = len(self.result["series"]) if self.result else -1
+                query_type = "rollup data" if self.params["database_rollups"] else "raw data"
+                query_log.query_log(node, query_start, d.elapsed, result_count, json.dumps(self.params), query_type, data_type, start_time, end_time)
+                break
+            except requests.exceptions.ConnectionError as ex:
+                # on down nodes, retry on another up to "tries" times
+                log.exception("IRONdbMeasurementFetcher.fetch ConnectionError %s" % ex)
+            except requests.exceptions.ConnectTimeout as ex:
+                # on down nodes, retry on another up to "tries" times
+                log.exception("IRONdbMeasurementFetcher.fetch ConnectTimeout %s" % ex)
+            except irondb_flatbuf.FlatBufferError as ex:
+                # flatbuffer error, try again
+                log.exception("IRONdbMeasurementFetcher.fetch FlatBufferError %s" % ex)
+            except JSONDecodeError as ex:
+                # json error, try again
+                log.exception("IRONdbMeasurementFetcher.fetch JSONDecodeError %s" % ex)
+            except requests.exceptions.ReadTimeout as ex:
+                # read timeouts are failures, stop immediately
+                log.exception("IRONdbMeasurementFetcher.fetch ReadTimeout %s" % ex)
+                break
+            except requests.exceptions.HTTPError as ex:
+                # http status code errors are failures, stop immediately
+                log.exception("IRONdbMeasurementFetcher.fetch HTTPError %s %s" % (ex, d.content))
+                break
+        if self.fetched:
+            return self.result
+        else:
+            return {}
+
+
 class IRONdbMeasurementFetcher(object):
     __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'rollup_window', 'timeout', 'connection_timeout', 'retries',
                  'zipkin_enabled', 'zipkin_event_trace_level')
@@ -234,56 +299,18 @@ class IRONdbMeasurementFetcher(object):
                 else:
                     params['database_rollups'] = self.database_rollups
                 tries = self.retries
-                for i in range(0, max(urls.host_count, tries)):
-                    try:
-                        self.fetched = False
-                        query_start = time.gmtime()
-                        node = urls.series_multi
-                        data_type = "json"
-                        send_headers = copy.deepcopy(self.headers)
-                        if self.zipkin_enabled == True:
-                            traceheader = binascii.hexlify(os.urandom(8))
-                            send_headers['X-B3-TraceId'] = traceheader
-                            send_headers['X-B3-SpanId'] = traceheader
-                            if self.zipkin_event_trace_level == 1:
-                                send_headers['X-Mtev-Trace-Event'] = '1'
-                            elif self.zipkin_event_trace_level == 2:
-                                send_headers['X-Mtev-Trace-Event'] = '2'
-                        d = requests.post(urls.series_multi, json = params, headers = send_headers,
-                                          timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
-                        d.raise_for_status()
-                        if 'content-type' in d.headers and d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
-                            self.results = irondb_flatbuf.metric_get_results(d.content)
-                            self.fetched = True
-                            data_type = "flatbuffer"
-                        else:
-                            self.results = d.json()
-                            self.fetched = True
+                urls = (urls.series_multi for _ in range(0, max(urls.host_count, tries)))
+                send_headers = copy.deepcopy(self.headers)
+                q = HTTPClientSeq(headers=send_headers, params=params, 
+                    zipkin_level=self.zipkin_event_trace_level, 
+                    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
+                self.fetched = False
+                node = urls.series_multi
+                result = q.request(query_log, start_time, end_time, node, method='POST', urls=urls)
+                if result:
+                    self.results = result
+                    self.fetched = True
 
-                        result_count = len(self.results["series"]) if self.results else -1
-                        query_type = "rollup data" if params["database_rollups"] else "raw data"
-                        query_log.query_log(node, query_start, d.elapsed, result_count, json.dumps(params), query_type, data_type, start_time, end_time)
-                        break
-                    except requests.exceptions.ConnectionError as ex:
-                        # on down nodes, retry on another up to "tries" times
-                        log.exception("IRONdbMeasurementFetcher.fetch ConnectionError %s" % ex)
-                    except requests.exceptions.ConnectTimeout as ex:
-                        # on down nodes, retry on another up to "tries" times
-                        log.exception("IRONdbMeasurementFetcher.fetch ConnectTimeout %s" % ex)
-                    except irondb_flatbuf.FlatBufferError as ex:
-                        # flatbuffer error, try again
-                        log.exception("IRONdbMeasurementFetcher.fetch FlatBufferError %s" % ex)
-                    except JSONDecodeError as ex:
-                        # json error, try again
-                        log.exception("IRONdbMeasurementFetcher.fetch JSONDecodeError %s" % ex)
-                    except requests.exceptions.ReadTimeout as ex:
-                        # read timeouts are failures, stop immediately
-                        log.exception("IRONdbMeasurementFetcher.fetch ReadTimeout %s" % ex)
-                        break
-                    except requests.exceptions.HTTPError as ex:
-                        # http status code errors are failures, stop immediately
-                        log.exception("IRONdbMeasurementFetcher.fetch HTTPError %s %s" % (ex, d.content))
-                        break
             if settings.DEBUG:
                 log.debug("IRONdbMeasurementFetcher.fetch results: %s" % json.dumps(self.results))
             self.lock.release()
