@@ -211,7 +211,7 @@ class HTTPClientSeq(object):
         self.result = {}
         self.caller = caller
                                 
-    def request(self, query_log, start_time, end_time, method='GET', urls=None, caller=None):
+    def request(self, query_log, start_time, end_time, method='GET', urls=None):
         for url in urls:
             if self.zipkin_level > 0:
                 traceheader = binascii.hexlify(os.urandom(8))
