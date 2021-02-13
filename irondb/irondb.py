@@ -198,9 +198,11 @@ class HTTPClientSeq(object):
 
     def __init__(self, headers=None, params=None, zipkin_level=0, timeout=(0,0)):
         if headers == None:
-            self.headers = {}
+            headers = {}
+        self.headers = headers
         if params == None:
-            self.params = {}
+            params = {}
+        self.params = params
         self.zipkin_level = zipkin_level
         self.timeout = timeout
         self.fetched = False
@@ -218,6 +220,7 @@ class HTTPClientSeq(object):
                 elif self.zipkin_level == 2:
                     self.headers['X-Mtev-Trace-Event'] = '2'
             try:
+                log.info(url)
                 query_start = time.gmtime()        
                 d = requests.request(method, url, json=self.params, headers=self.headers, timeout=self.timeout)
                 d.raise_for_status()
@@ -300,7 +303,6 @@ class IRONdbMeasurementFetcher(object):
                     params['database_rollups'] = self.database_rollups
                 tries = self.retries
                 url_list = (urls.series_multi for _ in range(0, max(urls.host_count, tries)))
-                log.info(url_list)
                 send_headers = copy.deepcopy(self.headers)
                 q = HTTPClientSeq(headers=send_headers, params=params, 
                     zipkin_level=self.zipkin_event_trace_level, 
