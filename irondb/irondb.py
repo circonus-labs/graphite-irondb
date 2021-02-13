@@ -299,14 +299,15 @@ class IRONdbMeasurementFetcher(object):
                 else:
                     params['database_rollups'] = self.database_rollups
                 tries = self.retries
-                urls = (urls.series_multi for _ in range(0, max(urls.host_count, tries)))
+                url_list = (urls.series_multi for _ in range(0, max(urls.host_count, tries)))
+                log.info(url_list)
                 send_headers = copy.deepcopy(self.headers)
                 q = HTTPClientSeq(headers=send_headers, params=params, 
                     zipkin_level=self.zipkin_event_trace_level, 
                     timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
                 self.fetched = False
                 node = urls.series_multi
-                result = q.request(query_log, start_time, end_time, node, method='POST', urls=urls)
+                result = q.request(query_log, start_time, end_time, node, method='POST', urls=url_list)
                 if result:
                     self.results = result
                     self.fetched = True
