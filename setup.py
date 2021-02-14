@@ -47,7 +47,8 @@ setup_args=dict(
         'Topic :: System :: Monitoring',
     ),
     install_requires=(
-        'requests','physiq-flatbuffers'
+        'requests','physiq-flatbuffers',
+        'futures; python_version == "2.7"'
     )
 )
 
