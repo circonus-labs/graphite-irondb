@@ -283,8 +283,8 @@ class HTTPClientFutures(object):
                                 
     def request(self, query_log, start_time, end_time, method='GET', urls=None):
 
-        def _load_url(method, url, json, headers, timeout, zipkin_level):
-            r = None
+        def _load_url(method, url, params, headers, timeout, zipkin_level):
+            result = None
             if zipkin_level > 0:
                 traceheader = binascii.hexlify(os.urandom(8))
                 headers['X-B3-TraceId'] = traceheader
@@ -294,55 +294,50 @@ class HTTPClientFutures(object):
                 elif zipkin_level == 2:
                     headers['X-Mtev-Trace-Event'] = '2'
             query_start = time.gmtime()    
-            result = requests.request(method, url, json=json, headers=headers, timeout=timeout)
-            result.raise_for_status()
-            if result.status_code == 200:
-                result_count = len(result["series"]) if result else -1
-                query_type = "rollup data" if json.get("database_rollups") else "raw data"
-                query_log.query_log(url, query_start, result.elapsed, result_count, json.dumps(json), query_type, data_type, start_time, end_time)
+            res = requests.request(method, url, json=params, headers=headers, timeout=timeout)
+            res.raise_for_status()
+            if res.status_code == 200:
+                if res.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
+                    data_type = "flatbuffer"
+                    result = irondb_flatbuf.metric_get_results(res.content)
+                else:
+                    data_type = "json"
+                    result = res.json()
+                result_count = len(result.get("series")) if result.get("series") else -1
+                query_type = "rollup data" if params.get("database_rollups") else "raw data"
+                query_log.query_log(url, query_start, res.elapsed, result_count, json.dumps(params), query_type, data_type, start_time, end_time)
             return result
 
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.workers)
         _fetched = False
         futures = []
         result = {}
+        d = None
         for url in urls:
             futures.append(
                 executor.submit(_load_url, method, url, self.params, self.headers, self.timeout, self.zipkin_level)
             )
         for future in concurrent.futures.as_completed(futures):
             try:
-                d = future.result()
-                if d.status_code == 200:
+                result = future.result()
+                if len(result.get("series")) > 0:
                     _fetched = True
                     break
             except concurrent.futures.CancelledError as ex:
                 pass
             except requests.exceptions.ConnectionError as ex:
-                # on down nodes, retry on another up to "tries" times
                 log.exception("%s ConnectionError %s" % (self.caller, ex))
             except requests.exceptions.ConnectTimeout as ex:
-                # on down nodes, retry on another up to "tries" times
                 log.exception("%s ConnectTimeout %s" % (self.caller, ex))
             except irondb_flatbuf.FlatBufferError as ex:
-                # flatbuffer error, try again
                 log.exception("%s FlatBufferError %s" % (self.caller, ex))
             except JSONDecodeError as ex:
-                # json error, try again
                 log.exception("%s JSONDecodeError %s" %(self.caller,  ex))
             except requests.exceptions.ReadTimeout as ex:
-                # read timeouts are failures, stop immediately
                 log.exception("%s ReadTimeout %s" % (self.caller, ex))
-                #break
             except requests.exceptions.HTTPError as ex:
-                # http status code errors are failures, stop immediately
                 log.exception("%s HTTPError %s %s" % (self.caller, ex, d.content))
-                #break
-            if d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
-                data_type = "flatbuffer"
-                result = irondb_flatbuf.metric_get_results(d.content)
-            else:
-                result = d.json()
+
 
         if _fetched:
             return result
@@ -393,7 +388,7 @@ class IRONdbMeasurementFetcher(object):
                 tries = self.retries
                 url_list = (urls.series_multi for _ in range(0, max(urls.host_count, tries)))
                 send_headers = copy.deepcopy(self.headers)
-                q = HTTPClientFutures(headers=send_headers, params=params, 
+                q = HTTPClientFutures(workers=urls.host_count, headers=send_headers, params=params, 
                     zipkin_level=self.zipkin_event_trace_level, 
                     timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
                     caller='IRONdbMeasurementFetcher.fetch')
