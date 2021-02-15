@@ -410,10 +410,11 @@ class IRONdbMeasurementFetcher(object):
                 tries = self.retries
                 url_list = (urls.series_multi for _ in range(0, max(urls.host_count, tries)))
                 send_headers = copy.deepcopy(self.headers)
-                #q = HTTPClientFutures(workers=urls.host_count, headers=send_headers, params=params, 
+                #q = HTTPClientFutures(headers=send_headers, params=params, 
                 #    zipkin_level=self.zipkin_event_trace_level, 
                 #    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
-                #    caller='IRONdbMeasurementFetcher.fetch')
+                #    logger=query_log, caller='IRONdbMeasurementFetcher.fetch',
+                #    workers=urls.host_count)
                 q = HTTPClientSeq(headers=send_headers, params=params, 
                     zipkin_level=self.zipkin_event_trace_level, 
                     timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
@@ -520,6 +521,11 @@ class IRONdbFinder(BaseFinder):
                 name_params['activity_start_secs'] = start_time
                 name_params['activity_end_secs'] = end_time
             url_list = (urls.names for _ in range(0, max(urls.host_count, tries)))
+            #r = HTTPClientFutures(headers=name_headers, params=name_params, 
+            #    zipkin_level=self.zipkin_event_trace_level, 
+            #    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+            #    logger=self, caller='IRONdbFinder.fetch',
+            #    workers=urls.host_count)
             r = HTTPClientSeq(headers=name_headers, params=name_params, 
                 zipkin_level=self.zipkin_event_trace_level, 
                 timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
