@@ -196,9 +196,9 @@ class IRONdbLocalSettings(object):
 
 
 class HTTPClientSeq(object):
-    __slots__ = ('headers', 'params', 'fetched', 'data_type', 'result', 'zipkin_level', 'timeout', 'caller')
+    __slots__ = ('headers', 'params', 'fetched', 'data_type', 'result', 'zipkin_level', 'timeout', 'logger', 'caller')
 
-    def __init__(self, headers=None, params=None, zipkin_level=0, timeout=(0,0), caller=''):
+    def __init__(self, headers=None, params=None, zipkin_level=0, timeout=(0,0), logger=None, caller=''):
         if headers == None:
             headers = {}
         self.headers = headers
@@ -209,10 +209,16 @@ class HTTPClientSeq(object):
         self.timeout = timeout
         self.fetched = False
         self.data_type = 'json'
-        self.result = {}
+        self.result = None
+        self.logger = logger
         self.caller = caller
                                 
-    def request(self, query_log, start_time, end_time, method='GET', urls=None):
+    def request(self, start_time, end_time, method='GET', urls=None):
+        query_type = "rollup data" if self.params.get("database_rollups") else "raw data"
+        if self.headers['Accept'] == 'application/x-flatbuffer-metric-find-result-list':
+            query_type = "names"
+        #if self.headers['Accept'] == 'application/x-flatbuffer-metric-get-result-list':
+        #    query_type = "names"
         for url in urls:
             if self.zipkin_level > 0:
                 traceheader = binascii.hexlify(os.urandom(8))
@@ -223,19 +229,28 @@ class HTTPClientSeq(object):
                 elif self.zipkin_level == 2:
                     self.headers['X-Mtev-Trace-Event'] = '2'
             try:
-                query_start = time.gmtime()        
-                d = requests.request(method, url, json=self.params, headers=self.headers, timeout=self.timeout)
+                query_start = time.gmtime()
+                d = requests.request(method, url, params=self.params, json=self.params, headers=self.headers, timeout=self.timeout)
                 d.raise_for_status()
                 if d.status_code == 200:
                     self.fetched = True
                     if d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
                         data_type = "flatbuffer"
                         self.result = irondb_flatbuf.metric_get_results(d.content)
+                    elif d.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
+                        data_type = "flatbuffer"
+                        self.result = irondb_flatbuf.metric_find_results(d.content)
                     else:
+                        data_type = "json"
                         self.result = d.json()
-                result_count = len(self.result["series"]) if self.result else -1
-                query_type = "rollup data" if self.params["database_rollups"] else "raw data"
-                query_log.query_log(url, query_start, d.elapsed, result_count, json.dumps(self.params), query_type, data_type, start_time, end_time)
+                if 'data' in query_type:
+                    req = json.dumps(self.params)
+                    result_count = len(self.result["series"]) if self.result else -1
+                else:
+                    req = self.params["query"]
+                    result_count = len(self.result) if self.result else -1
+                if self.logger:
+                    self.logger.query_log(url, query_start, d.elapsed, result_count, req, query_type, data_type, start_time, end_time)
                 break
             except requests.exceptions.ConnectionError as ex:
                 # on down nodes, retry on another up to "tries" times
@@ -338,7 +353,6 @@ class HTTPClientFutures(object):
             except requests.exceptions.HTTPError as ex:
                 log.exception("%s HTTPError %s %s" % (self.caller, ex, d.content))
 
-
         if _fetched:
             return result
         else:
@@ -388,12 +402,16 @@ class IRONdbMeasurementFetcher(object):
                 tries = self.retries
                 url_list = (urls.series_multi for _ in range(0, max(urls.host_count, tries)))
                 send_headers = copy.deepcopy(self.headers)
-                q = HTTPClientFutures(workers=urls.host_count, headers=send_headers, params=params, 
+                #q = HTTPClientFutures(workers=urls.host_count, headers=send_headers, params=params, 
+                #    zipkin_level=self.zipkin_event_trace_level, 
+                #    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+                #    caller='IRONdbMeasurementFetcher.fetch')
+                q = HTTPClientSeq(headers=send_headers, params=params, 
                     zipkin_level=self.zipkin_event_trace_level, 
                     timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
-                    caller='IRONdbMeasurementFetcher.fetch')
+                    logger=query_log, caller='IRONdbMeasurementFetcher.fetch')                
                 self.fetched = False
-                result = q.request(query_log, start_time, end_time, method='POST', urls=url_list)
+                result = q.request(start_time, end_time, method='POST', urls=url_list)
                 if result:
                     self.results = result
                     self.fetched = True
@@ -489,58 +507,20 @@ class IRONdbFinder(BaseFinder):
             tries = self.max_retries
             name_headers = copy.deepcopy(self.headers)
             name_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
-            for i in range(0, max(urls.host_count, tries)):
-                try:
-                    node = urls.names
-                    query_start = time.gmtime()
-                    data_type = "json"
-                    if self.zipkin_enabled == True:
-                        traceheader = binascii.hexlify(os.urandom(8))
-                        name_headers['X-B3-TraceId'] = traceheader
-                        name_headers['X-B3-SpanId'] = traceheader
-                        if self.zipkin_event_trace_level == 1:
-                            name_headers['X-Mtev-Trace-Event'] = '1'
-                        if self.zipkin_event_trace_level == 2:
-                            name_headers['X-Mtev-Trace-Event'] = '2'
-                    name_params = {'query': pattern}
-                    if self.activity_tracking:
-                        name_params['activity_start_secs'] = start_time
-                        name_params['activity_end_secs'] = end_time
-                    r = requests.get(node, params=name_params, headers=name_headers,
-                                     timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
-                    r.raise_for_status()
-                    if r.headers['content-type'] == 'application/json':
-                        names = r.json()
-                    elif r.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
-                        names = irondb_flatbuf.metric_find_results(r.content)
-                        data_type = "flatbuffer"
-                    else:
-                        pass
-                    result_count = len(names) if names else -1
-                    self.query_log(node, query_start, r.elapsed, result_count, pattern, "names", data_type, start_time, end_time)
-                    break
-                except requests.exceptions.ConnectionError as ex:
-                    # on down nodes, try again on another node until "tries"
-                    log.exception("IRONdbFinder.fetch ConnectionError %s" % ex)
-                except requests.exceptions.ConnectTimeout as ex:
-                    # on down nodes, try again on another node until "tries"
-                    log.exception("IRONdbFinder.fetch ConnectTimeout %s" % ex)
-                except irondb_flatbuf.FlatBufferError as ex:
-                    # flatbuffer error, try again
-                    log.exception("IRONdbFinder.fetch FlatBufferError %s" % ex)
-                except JSONDecodeError as ex:
-                    # json error, try again
-                    log.exception("IRONdbFinder.fetch JSONDecodeError %s" % ex)
-                except requests.exceptions.ReadTimeout as ex:
-                    # up node that simply timed out is a failure
-                    log.exception("IRONdbFinder.fetch ReadTimeout %s" % ex)
-                    break
-                except requests.exceptions.HTTPError as ex:
-                    # http status code errors are failures, stop immediately
-                    log.exception("IRONdbFinder.fetch HTTPError %s %s" % (ex, r.content))
-                    break
-
-            all_names[pattern] = names
+            name_params = {'query': pattern}
+            if self.activity_tracking:
+                name_params['activity_start_secs'] = start_time
+                name_params['activity_end_secs'] = end_time
+            url_list = (urls.names for _ in range(0, max(urls.host_count, tries)))
+            r = HTTPClientSeq(headers=name_headers, params=name_params, 
+                zipkin_level=self.zipkin_event_trace_level, 
+                timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+                logger=self, caller='IRONdbFinder.fetch')                
+            result = r.request(start_time, end_time, method='GET', urls=url_list)
+            if result:
+                all_names[pattern] = result
+            else:
+                all_names[pattern] = []
 
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
