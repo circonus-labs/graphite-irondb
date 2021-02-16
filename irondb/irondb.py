@@ -615,46 +615,17 @@ class IRONdbFinder(BaseFinder):
         tries = self.max_retries
         name_headers = copy.deepcopy(self.headers)
         name_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
-        for i in range(0, max(urls.host_count, tries)):
-            try:
-                if self.zipkin_enabled == True:
-                    traceheader = binascii.hexlify(os.urandom(8))
-                    name_headers['X-B3-TraceId'] = traceheader
-                    name_headers['X-B3-SpanId'] = traceheader
-                    if self.zipkin_event_trace_level == 1:
-                        name_headers['X-Mtev-Trace-Event'] = '1'
-                    elif self.zipkin_event_trace_level == 2:
-                        name_headers['X-Mtev-Trace-Event'] = '2'
-                r = requests.get(urls.names, params={'query': query.pattern}, headers=name_headers,
-                                 timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
-                r.raise_for_status()
-                if r.headers['content-type'] == 'application/json':
-                    names = r.json()
-                elif r.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
-                    names = irondb_flatbuf.metric_find_results(r.content)
-                else:
-                    pass
-                break
-            except requests.exceptions.ConnectionError as ex:
-                # on down nodes, try again on another node until "tries"
-                log.exception("IRONdbFinder.find_nodes ConnectionError %s" % ex)
-            except requests.exceptions.ConnectTimeout as ex:
-                # on down nodes, try again on another node until "tries"
-                log.exception("IRONdbFinder.find_nodes ConnectTimeout %s" % ex)
-            except irondb_flatbuf.FlatBufferError as ex:
-                # flatbuffer error, try again
-                log.exception("IRONdbFinder.find_nodes FlatBufferError %s" % ex)
-            except JSONDecodeError as ex:
-                # json error, try again
-                log.exception("IRONdbFinder.find_nodes JSONDecodeError %s" % ex)
-            except requests.exceptions.ReadTimeout as ex:
-                # up node that simply timed out is a failure
-                log.exception("IRONdbFinder.find_nodes ReadTimeout %s" % ex)
-                break
-            except requests.exceptions.HTTPError as ex:
-                # http status code errors are failures, stop immediately
-                log.exception("IRONdbFinder.find_nodes HTTPError %s %s" % (ex, r.content))
-                break
+        url_list = (urls.names for _ in range(0, max(urls.host_count, tries)))
+        r = HTTPClientFutures(headers=name_headers, params={'query': query.pattern}, 
+            zipkin_level=self.zipkin_event_trace_level, 
+            timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+            logger=None, caller='IRONdbFinder.find_nodes',
+            workers=urls.host_count)
+        #r = HTTPClientSeq(headers=name_headers, params={'query': query.pattern}, 
+        #    zipkin_level=self.zipkin_event_trace_level, 
+        #    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+        #    logger=None, caller='IRONdbFinder.find_nodes')                
+        names = r.request('GET', url_list, start_time=0, end_time=0)
         if settings.DEBUG:
             log.debug("IRONdbFinder.find_nodes, result: %s" % json.dumps(names))
 
