@@ -6,6 +6,7 @@ import copy
 import json
 import os
 import binascii
+from typing import Dict
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
@@ -295,7 +296,7 @@ class HTTPClientFutures(object):
         self.caller = caller
         self.workers = workers
                                 
-    def request(self, method='GET', urls=None, start_time=0, end_time=0:
+    def request(self, method='GET', urls=None, start_time=0, end_time=0):
 
         def _load_url(method, url, params, headers, timeout, zipkin_level, logger):
             result = None
@@ -316,13 +317,13 @@ class HTTPClientFutures(object):
             if res.status_code == 200:
                 if res.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
                     data_type = "flatbuffer"
-                    result = irondb_flatbuf.metric_get_results(d.content)
+                    result = irondb_flatbuf.metric_get_results(res.content)
                 elif res.headers['content-type'] == 'application/x-flatbuffer-metric-find-result-list':
                     data_type = "flatbuffer"
-                    result = irondb_flatbuf.metric_find_results(d.content)
+                    result = irondb_flatbuf.metric_find_results(res.content)
                 else:
                     data_type = "json"
-                    result = d.json()
+                    result = res.json()
                 if 'data' in query_type:
                     req = json.dumps(params)
                     result_count = len(result["series"]) if result else -1
@@ -344,7 +345,10 @@ class HTTPClientFutures(object):
         for future in concurrent.futures.as_completed(futures):
             try:
                 result = future.result()
-                if len(result.get("series")) or len(result) > 0:
+                if isinstance(result, list) and len(result) > 0:
+                    _fetched = True
+                    break
+                elif isinstance(result, dict) and len(result.get("series")) > 0:
                     _fetched = True
                     break
             except concurrent.futures.CancelledError as ex:
@@ -410,17 +414,17 @@ class IRONdbMeasurementFetcher(object):
                 tries = self.retries
                 url_list = (urls.series_multi for _ in range(0, max(urls.host_count, tries)))
                 send_headers = copy.deepcopy(self.headers)
-                #q = HTTPClientFutures(headers=send_headers, params=params, 
-                #    zipkin_level=self.zipkin_event_trace_level, 
-                #    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
-                #    logger=query_log, caller='IRONdbMeasurementFetcher.fetch',
-                #    workers=urls.host_count)
-                q = HTTPClientSeq(headers=send_headers, params=params, 
+                q = HTTPClientFutures(headers=send_headers, params=params, 
                     zipkin_level=self.zipkin_event_trace_level, 
                     timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
-                    logger=query_log, caller='IRONdbMeasurementFetcher.fetch')                
+                    logger=query_log, caller='IRONdbMeasurementFetcher.fetch',
+                    workers=urls.host_count)
+                #q = HTTPClientSeq(headers=send_headers, params=params, 
+                #    zipkin_level=self.zipkin_event_trace_level, 
+                #    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+                #    logger=query_log, caller='IRONdbMeasurementFetcher.fetch')                
                 self.fetched = False
-                result = q.request(method='POST', urls=url_list, start_time, end_time)
+                result = q.request('POST', url_list, start_time, end_time)
                 if result:
                     self.results = result
                     self.fetched = True
@@ -521,16 +525,16 @@ class IRONdbFinder(BaseFinder):
                 name_params['activity_start_secs'] = start_time
                 name_params['activity_end_secs'] = end_time
             url_list = (urls.names for _ in range(0, max(urls.host_count, tries)))
-            #r = HTTPClientFutures(headers=name_headers, params=name_params, 
-            #    zipkin_level=self.zipkin_event_trace_level, 
-            #    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
-            #    logger=self, caller='IRONdbFinder.fetch',
-            #    workers=urls.host_count)
-            r = HTTPClientSeq(headers=name_headers, params=name_params, 
+            r = HTTPClientFutures(headers=name_headers, params=name_params, 
                 zipkin_level=self.zipkin_event_trace_level, 
                 timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
-                logger=self, caller='IRONdbFinder.fetch')                
-            result = r.request(method='GET', urls=url_list, start_time, end_time)
+                logger=self, caller='IRONdbFinder.fetch',
+                workers=urls.host_count)
+            #r = HTTPClientSeq(headers=name_headers, params=name_params, 
+            #    zipkin_level=self.zipkin_event_trace_level, 
+            #    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+            #    logger=self, caller='IRONdbFinder.fetch')                
+            result = r.request('GET', url_list, start_time, end_time)
             if result:
                 all_names[pattern] = result
             else:
