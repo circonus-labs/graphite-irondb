@@ -213,7 +213,7 @@ class HTTPClientSeq(object):
         self.logger = logger
         self.caller = caller
                                 
-    def request(self, start_time, end_time, method='GET', urls=None):
+    def request(self, method='GET', urls=None, start_time=0, end_time=0):
         query_type = "rollup data" if self.params.get("database_rollups") else "raw data"
         if self.headers['Accept'] == 'application/x-flatbuffer-metric-find-result-list':
             query_type = "names"
@@ -295,7 +295,7 @@ class HTTPClientFutures(object):
         self.caller = caller
         self.workers = workers
                                 
-    def request(self, start_time, end_time, method='GET', urls=None):
+    def request(self, method='GET', urls=None, start_time=0, end_time=0:
 
         def _load_url(method, url, params, headers, timeout, zipkin_level, logger):
             result = None
@@ -420,7 +420,7 @@ class IRONdbMeasurementFetcher(object):
                     timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
                     logger=query_log, caller='IRONdbMeasurementFetcher.fetch')                
                 self.fetched = False
-                result = q.request(start_time, end_time, method='POST', urls=url_list)
+                result = q.request(method='POST', urls=url_list, start_time, end_time)
                 if result:
                     self.results = result
                     self.fetched = True
@@ -530,7 +530,7 @@ class IRONdbFinder(BaseFinder):
                 zipkin_level=self.zipkin_event_trace_level, 
                 timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
                 logger=self, caller='IRONdbFinder.fetch')                
-            result = r.request(start_time, end_time, method='GET', urls=url_list)
+            result = r.request(method='GET', urls=url_list, start_time, end_time)
             if result:
                 all_names[pattern] = result
             else:
