@@ -655,7 +655,7 @@ class IRONdbTagFetcher(BaseTagDB):
         super(IRONdbTagFetcher, self).__init__(settings, *args, **kwargs)
         IRONdbLocalSettings.load(self)
 
-    def _request(self, url, query, flatbuffers=False):
+    def _request(self, url_list, query, flatbuffers=False):
         tag_headers = copy.deepcopy(self.headers)
         if flatbuffers:
             tag_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
@@ -664,73 +664,48 @@ class IRONdbTagFetcher(BaseTagDB):
         source = ""
         if settings.DEBUG:
             source = sys._getframe().f_back.f_code.co_name
-        tries = self.max_retries
-        for i in range(0, max(urls.host_count, tries)):
-            try:
-                if self.zipkin_enabled == True:
-                    traceheader = binascii.hexlify(os.urandom(8))
-                    tag_headers['X-B3-TraceId'] = traceheader
-                    tag_headers['X-B3-SpanId'] = traceheader
-                    if self.zipkin_event_trace_level == 1:
-                        tag_headers['X-Mtev-Trace-Event'] = '1'
-                    elif self.zipkin_event_trace_level == 2:
-                        tag_headers['X-Mtev-Trace-Event'] = '2'
-                r = requests.get(url, params=query, headers=tag_headers,
-                                     timeout=((self.connection_timeout / 1000), (self.timeout / 1000)))
-                r.raise_for_status()
-                if flatbuffers:
-                    r = irondb_flatbuf.metric_find_results(r.content)
-                else:
-                    r = r.json()
-                if settings.DEBUG:
-                    log.debug("IRONdbTagFetcher.%s, result: %s" % (source, json.dumps(r)))
-                return r
-            except requests.exceptions.ConnectionError as ex:
-                # on down nodes, try again on another node until "tries"
-                log.exception("IRONdbTagFetcher.%s ConnectionError %s" % (source, ex))
-            except requests.exceptions.ConnectTimeout as ex:
-                # on down nodes, try again on another node until "tries"
-                log.exception("IRONdbTagFetcher.%s ConnectTimeout %s" % (source, ex))
-            except irondb_flatbuf.FlatBufferError as ex:
-                # flatbuffer error, try again
-                log.exception("IRONdbTagFetcher.%s FlatBufferError %s" % (source, ex))
-            except JSONDecodeError as ex:
-                # json error, try again
-                log.exception("IRONdbTagFetcher.%s JSONDecodeError %s" % (source, ex))
-            except requests.exceptions.ReadTimeout as ex:
-                # up node that simply timed out is a failure
-                log.exception("IRONdbTagFetcher.%s ReadTimeout %s" % (source, ex))
-                break
-            except requests.exceptions.HTTPError as ex:
-                # http status code errors are failures, stop immediately
-                log.exception("IRONdbTagFetcher.%s HTTPError %s %s" % (source, ex, r.content))
-                break
-        return ()
+        r = HTTPClientFutures(headers=tag_headers, params=query, 
+            zipkin_level=self.zipkin_event_trace_level, 
+            timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+            logger=None, caller='IRONdbTagFetcher.%s' % (source),
+            workers=urls.host_count)
+        #r = HTTPClientSeq(headers=tag_headers, params=query, 
+        #    zipkin_level=self.zipkin_event_trace_level, 
+        #    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+        #    logger=None, caller='IRONdbTagFetcher.%s' % (source))                
+        result = r.request('GET', url_list, start_time=0, end_time=0)
+        if settings.DEBUG:
+            log.debug("IRONdbTagFetcher.%s, result: %s" % (source, json.dumps(r)))
+        return result
 
     def _find_series(self, tags, requestContext=None):
         query = ','.join(tags)
-        tag_series = self._request(urls.tags, query, True)
+        url_list = (urls.tags for _ in range(0, max(urls.host_count, self.max_retries)))
+        tag_series = self._request(url_list, query, True)
         return [series['name'] for series in tag_series]
 
     def list_tags(self, tagFilter=None, limit=None, requestContext=None):
         query = {'query': 'and(*:*)'}
-        url, prefix = urls.tag_cats
+        _, prefix = urls.tag_cats
         if prefix:
             query['prefix'] = prefix
-        tag_cats = self._request(url, query)
+        url_list, _ = (urls.tag_cats for _ in range(0, max(urls.host_count, self.max_retries)))
+        tag_cats = self._request(url_list, query)
         return [{'tag': tag} for tag in tag_cats]
 
     def get_tag(self, tag, valueFilter=None, limit=None, requestContext=None):
         query = {'query': 'and(*:*)', 'category': tag}
-        url, prefix = urls.tag_vals
+        _, prefix = urls.tag_vals
         if prefix:
             query['prefix'] = prefix
-        tag_vals = self._request(url, query)
+        urls_tag_vals, _ = (urls.tag_vals for _ in range(0, max(urls.host_count, self.max_retries)))
+        tag_vals = self._request(urls_tag_vals, query)
         if not tag_vals:
             return None
         res = []
+        urls_tags = (urls.tags for _ in range(0, max(urls.host_count, self.max_retries)))
         for val in tag_vals:
-            tag_series = self._request(urls.tags, '%s=%s' % (tag, val), True)
+            tag_series = self._request(urls_tags, '%s=%s' % (tag, val), True)
             if not tag_series:
                 return None
             tag_count = len(tag_series)
