@@ -255,8 +255,7 @@ class HTTPClient(object):
                 if logger:
                     logger.query_log(url, query_start, res.elapsed, result_count, req, query_type, data_type, start_time, end_time)
             return result
-
-        _fetched = False
+            
         result = None
         if not self.parallel_http or self.workers == 1:
             # no need to use futures
