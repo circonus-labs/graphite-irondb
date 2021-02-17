@@ -55,6 +55,7 @@ In your graphite's `local_settings.py`:
     IRONDB_MAX_RETRIES = 2
     IRONDB_QUERY_LOG = False
     IRONDB_PARALLEL_HTTP = True
+    IRONDB_URLS_ROTATE = True
 
 Where `irondb-host` is the DNS or IP of an IRONdb node, `port`
 (usually 8112) is the listening port for IRONdb, and <account> is some
@@ -123,6 +124,9 @@ Only failures to connect are retried (see `IRONDB_CONNECTION_TIMEOUT_MS`).  Time
 other failures are not retried to prevent thundering herd problems. Parameter is 
 ingored in case of parallel HTTP requests (multiple `IRONDB_URLS` and 
 `IRONDB_PARALLEL_HTTP = True`).
+
+`IRONDB_URLS_ROTATE` is also optional and if enabled will pseudorandomly rotate list of URLs in
+`IRONDB_URLS` for every instance of plugin, effectively balancing HTTP requests between them.
 
 `IRONDB_QUERY_LOG` is optional and will default to False.  Will log out
 all queries to the IRONdb backend nodes into the info.log if this is set

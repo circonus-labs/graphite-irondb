@@ -6,7 +6,7 @@ import copy
 import json
 import os
 import binascii
-from typing import Dict
+#from typing import Dict
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
