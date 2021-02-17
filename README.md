@@ -5,7 +5,7 @@ Graphite-IRONdb
 
 A plugin for using graphite with the IRONdb from Circonus.
 
-Requires Graphite-web 1.1.X.
+Supports Graphite-web 0.9.x, 1.0.x and 1.1.X.
 
 Installation
 ------------
@@ -54,6 +54,7 @@ In your graphite's `local_settings.py`:
     IRONDB_CONNECTION_TIMEOUT_MS = 3005
     IRONDB_MAX_RETRIES = 2
     IRONDB_QUERY_LOG = False
+    IRONDB_PARALLEL_HTTP = True
 
 Where `irondb-host` is the DNS or IP of an IRONdb node, `port`
 (usually 8112) is the listening port for IRONdb, and <account> is some
@@ -75,6 +76,10 @@ IRONdb installation behind a load balancer.  For example,
 
 NOTE: the `IRONDB_URLS` is a python list and therefore must end with a 
 trailing comma on the last entry.
+
+Please note that in case of multiple `IRONDB_URLS` plugin will automatically 
+send parallel requests to all URLs and pick first non-empty response. Set
+`IRONDB_PARALLEL_HTTP` to `False` to fallback to sequential mode.
 
 If you are pointing graphite at a Circonus SaaS account, set the token
 to a valid Circonus Auth Token and set the URL to the public API URL
@@ -113,9 +118,11 @@ this will set an absolute timeout after which queries will be cut off.
 
 `IRONDB_CONNECTION_TIMEOUT_MS` is optional and will default to 3005.
 
-`IRONDB_MAX_RETRIES` is optional and will default to 2.  Only failures to 
-connect are retried (see `IRONDB_CONNECTION_TIMEOUT_MS`).  Timeouts or
-other failures are not retried to prevent thundering herd problems.
+`IRONDB_MAX_RETRIES` is optional and will default to number of `IRONDB_URLS` entries.  
+Only failures to connect are retried (see `IRONDB_CONNECTION_TIMEOUT_MS`).  Timeouts or
+other failures are not retried to prevent thundering herd problems. Parameter is 
+ingored in case of parallel HTTP requests (multiple `IRONDB_URLS` and 
+`IRONDB_PARALLEL_HTTP = True`).
 
 `IRONDB_QUERY_LOG` is optional and will default to False.  Will log out
 all queries to the IRONdb backend nodes into the info.log if this is set
@@ -156,3 +163,4 @@ Changelog
 * **0.0.19** (2019-03-05): Improve FlatBuffer error handling. Add Zipkin header support
 * **0.0.20** (2019-05-03): Don't issue IRONdb series requests for empty find results, Add `IRONDB_ROLLUP_WINDOW` setting, Respect `IRONDB_BATCH_SIZE` setting, fix fetcher keyerror, use first start time when all series arrive late
 * **0.0.21** (2019-05-14): Fix memory leak introduced in 0.0.20
+* **0.0.22** (TBD): Parallel HTTP mode implemented
