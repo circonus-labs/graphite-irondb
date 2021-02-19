@@ -54,7 +54,7 @@ In your graphite's `local_settings.py`:
     IRONDB_CONNECTION_TIMEOUT_MS = 3005
     IRONDB_MAX_RETRIES = 2
     IRONDB_QUERY_LOG = False
-    IRONDB_PARALLEL_HTTP = True
+    IRONDB_PARALLEL_HTTP = 2
     IRONDB_URLS_ROTATE = True
 
 Where `irondb-host` is the DNS or IP of an IRONdb node, `port`
@@ -79,8 +79,8 @@ NOTE: the `IRONDB_URLS` is a python list and therefore must end with a
 trailing comma on the last entry.
 
 Please note that in case of multiple `IRONDB_URLS` plugin will automatically 
-send parallel requests to all URLs and pick first non-empty response. Set
-`IRONDB_PARALLEL_HTTP` to `False` to fallback to sequential mode.
+send parallel requests to URLs and pick first non-empty response. Set
+`IRONDB_PARALLEL_HTTP` to `0` to fallback to sequential mode.
 
 If you are pointing graphite at a Circonus SaaS account, set the token
 to a valid Circonus Auth Token and set the URL to the public API URL
@@ -123,7 +123,11 @@ this will set an absolute timeout after which queries will be cut off.
 Only failures to connect are retried (see `IRONDB_CONNECTION_TIMEOUT_MS`).  Timeouts or
 other failures are not retried to prevent thundering herd problems. Parameter is 
 ingored in case of parallel HTTP requests (multiple `IRONDB_URLS` and 
-`IRONDB_PARALLEL_HTTP = True`).
+`IRONDB_PARALLEL_HTTP > 1`).
+
+`IRONDB_PARALLEL_HTTP` is optional and will default to 0. If it's more or equal 2 then plugin
+will send up to `IRONDB_PARALLEL_HTTP` requests to IronDB in parallel and picks up first non-empty 
+response. `IRONDB_MAX_RETRIES` is ignoring in this mode and no retries will be done.
 
 `IRONDB_URLS_ROTATE` is also optional and if enabled will pseudorandomly rotate list of URLs in
 `IRONDB_URLS` for every instance of plugin, effectively balancing HTTP requests between them.

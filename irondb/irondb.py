@@ -194,18 +194,17 @@ class IRONdbLocalSettings(object):
         except AttributeError:
             self.zipkin_event_trace_level = 0
         try:
-            self.parallel_http = getattr(settings, 'IRONDB_PARALLEL_HTTP')
+            self.parallel_http = int(getattr(settings, 'IRONDB_PARALLEL_HTTP'))
         except AttributeError:
-            self.parallel_http = True 
+            self.parallel_http = 0
 
 
 class HTTPClient(object):
     """ IronDB specific HTTP client. """
-    __slots__ = ('parallel_http', 'workers', 'headers', 'params', 'zipkin_level', 'tries', 'timeout', 'logger', 'caller')
+    __slots__ = ('parallel_http', 'headers', 'params', 'zipkin_level', 'tries', 'timeout', 'logger', 'caller')
 
-    def __init__(self, parallel_http=True, workers=10, headers=None, params=None, zipkin_level=0, tries=1, timeout=(0,0), logger=None, caller=''):
+    def __init__(self, parallel_http=2, headers=None, params=None, zipkin_level=0, tries=1, timeout=(0,0), logger=None, caller=''):
         self.parallel_http = parallel_http
-        self.workers = workers
         if headers == None:
             headers = {}
         self.headers = headers
@@ -257,19 +256,22 @@ class HTTPClient(object):
             return result
             
         result = None
-        if not self.parallel_http or self.workers == 1:
-            # no need to use futures
-            for url in urls:
-                for _ in range(0, self.tries):
+        if self.parallel_http <= 1:
+            # fallback to sequential mode
+            for _ in range(0, self.tries):
+                for url in urls:
                     try:
                         result = _load_url(method, url, self.params, self.headers, self.timeout, self.zipkin_level, self.logger)
                         if isinstance(result, list) and len(result) > 0:
                             return result
                         elif isinstance(result, dict) and len(result.get("series")) > 0:
                             return result
+                    except requests.exceptions.ConnectTimeout as ex:
+                        # on down nodes, retry on another up to "tries" times
+                        log.exception("%s ConnectTimeout %s" % (self.caller, ex))
                     except (socket.gaierror, requests.exceptions.ConnectionError) as ex:
                         # on down nodes, retry on another up to "tries" times
-                        log.exception("%s ConnectionError %s" % (self.caller, ex))
+                        log.exception("%s ConnectionError %s" % (self.caller, ex))                  
                     except irondb_flatbuf.FlatBufferError as ex:
                         # flatbuffer error, try again
                         log.exception("%s FlatBufferError %s" % (self.caller, ex))
@@ -286,7 +288,7 @@ class HTTPClient(object):
                         break
         else:
             import concurrent.futures
-            executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.workers)
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.parallel_http)
             futures = []
             for url in urls:
                 futures.append(
@@ -303,15 +305,15 @@ class HTTPClient(object):
                     # cancelled future, safe to skip
                     pass
                 # in case of errors - log error and do nothing
-                # we're not doing retries in parallel HTTP mode
-                except requests.exceptions.ConnectionError as ex:
-                    log.exception("%s ConnectionError %s" % (self.caller, ex))
+                # we're not doing retries in parallel HTTP mode                            
+                except (socket.gaierror, requests.exceptions.ConnectionError) as ex:
+                    log.exception("%s ConnectionError %s" % (self.caller, ex))                   
                 except irondb_flatbuf.FlatBufferError as ex:
                     log.exception("%s FlatBufferError %s" % (self.caller, ex))
                 except JSONDecodeError as ex:
                     log.exception("%s JSONDecodeError %s" %(self.caller,  ex))
-                except requests.exceptions.ReadTimeout as ex:
-                    log.exception("%s ReadTimeout %s" % (self.caller, ex))
+                except requests.exceptions.Timeout as ex:
+                    log.exception("%s Timeout %s" % (self.caller, ex))
                 except requests.exceptions.HTTPError as ex:
                     log.exception("%s HTTPError %s" % (self.caller, ex))
         return None
@@ -360,10 +362,9 @@ class IRONdbMeasurementFetcher(object):
                     params['database_rollups'] = self.database_rollups
                 url_list = [ urls.series_multi for _ in range(0, urls.host_count) ]
                 send_headers = copy.deepcopy(self.headers)
-                q = HTTPClient(parallel_http=self.parallel_http, workers=urls.host_count, 
-                    headers=send_headers, params=params, 
+                q = HTTPClient(parallel_http=self.parallel_http, headers=send_headers, params=params, 
                     zipkin_level=self.zipkin_event_trace_level, tries=self.retries,
-                    timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+                    timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)),
                     logger=query_log, caller='IRONdbMeasurementFetcher.fetch')                
                 self.fetched = False
                 result = q.request('POST', url_list, start_time, end_time)
@@ -431,7 +432,7 @@ class IRONdbFinder(BaseFinder):
                 self.batch_size = config['irondb']['batch_size']
             urls = URLs(urls)
             self.max_retries = urls.host_count
-            self.parallel_http = True
+            self.parallel_http = 2
         else:
             IRONdbLocalSettings.load(self)
 
@@ -468,9 +469,9 @@ class IRONdbFinder(BaseFinder):
                 name_params['activity_start_secs'] = start_time
                 name_params['activity_end_secs'] = end_time
             url_list = [ urls.names for _ in range(0, urls.host_count) ]
-            r = HTTPClient(workers=urls.host_count, headers=name_headers, params=name_params, 
+            r = HTTPClient(parallel_http=self.parallel_http, headers=name_headers, params=name_params, 
                 zipkin_level=self.zipkin_event_trace_level, tries=self.max_retries,
-                timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+                timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)),
                 logger=self, caller='IRONdbFinder.fetch')             
             result = r.request('GET', url_list, start_time, end_time)
             if result:
@@ -553,33 +554,33 @@ class IRONdbFinder(BaseFinder):
         name_headers = copy.deepcopy(self.headers)
         name_headers['Accept'] = 'application/x-flatbuffer-metric-find-result-list'
         url_list =[ urls.names for _ in range(0, urls.host_count) ]
-        r = HTTPClient(parallel_http=self.parallel_http, workers=urls.host_count,
-            headers=name_headers, params={'query': query.pattern}, 
+        r = HTTPClient(parallel_http=self.parallel_http, headers=name_headers, params={'query': query.pattern}, 
             zipkin_level=self.zipkin_event_trace_level, tries=self.max_retries,
-            timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+            timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)),
             logger=None, caller='IRONdbFinder.find_nodes')                
         names = r.request('GET', url_list, start_time=0, end_time=0)
         if settings.DEBUG:
             log.debug("IRONdbFinder.find_nodes, result: %s" % json.dumps(names))
 
-        # for each set of self.batch_size leafnodes, execute an IRONdbMeasurementFetcher
-        # so we can do these in batches.
-        measurement_headers = copy.deepcopy(self.headers)
-        measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
-        fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.parallel_http)
+        if names:
+            # for each set of self.batch_size leafnodes, execute an IRONdbMeasurementFetcher
+            # so we can do these in batches.
+            measurement_headers = copy.deepcopy(self.headers)
+            measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
+            fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
+                                            self.zipkin_enabled, self.zipkin_event_trace_level, self.parallel_http)
 
-        for name in names:
-            if 'leaf' in name and 'leaf_data' in name:
-                fetcher.add_leaf(name['name'], name['leaf_data'])
-                reader = IRONdbReader(name['name'], fetcher)
-                yield LeafNode(name['name'], reader)
-            else:
-                yield BranchNode(name['name'])
-                if metrics_expand:
-                    query = FindQuery(name['name'] + '.**', None, None)
-                    for node in self.find_nodes(query):
-                        yield node
+            for name in names:
+                if 'leaf' in name and 'leaf_data' in name:
+                    fetcher.add_leaf(name['name'], name['leaf_data'])
+                    reader = IRONdbReader(name['name'], fetcher)
+                    yield LeafNode(name['name'], reader)
+                else:
+                    yield BranchNode(name['name'])
+                    if metrics_expand:
+                        query = FindQuery(name['name'] + '.**', None, None)
+                        for node in self.find_nodes(query):
+                            yield node
 
 
 class IRONdbTagFetcher(BaseTagDB):
@@ -597,15 +598,16 @@ class IRONdbTagFetcher(BaseTagDB):
         source = ""
         if settings.DEBUG:
             source = sys._getframe().f_back.f_code.co_name
-        r = HTTPClient(parallel_http=self.parallel_http, workers=urls.host_count, 
-            headers=tag_headers, params=query, 
+        r = HTTPClient(parallel_http=self.parallel_http, headers=tag_headers, params=query, 
             zipkin_level=self.zipkin_event_trace_level, tries=self.max_tries, 
-            timeout=((self.connection_timeout / 1000), (self.timeout / 1000)),
+            timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)),
             logger=None, caller='IRONdbTagFetcher.%s' % (source))                
         result = r.request('GET', url_list, start_time=0, end_time=0)
         if settings.DEBUG:
             log.debug("IRONdbTagFetcher.%s, result: %s" % (source, json.dumps(r)))
-        return result
+        if result:
+            return result
+        return []
 
     def _find_series(self, tags, requestContext=None):
         query = ','.join(tags)
