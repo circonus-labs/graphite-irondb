@@ -18,6 +18,9 @@ except ImportError:
 
 import requests
 import socket
+import struct
+import urllib3
+
 from django.conf import settings
 
 from graphite.intervals import Interval, IntervalSet
@@ -172,6 +175,14 @@ class IRONdbLocalSettings(object):
         except AttributeError:
             self.query_log_enabled = False
         try:
+            self.parallel_http = int(getattr(settings, 'IRONDB_PARALLEL_HTTP'))
+        except AttributeError:
+            self.parallel_http = 1
+        try:
+            self.socket_receive_timeout = int(getattr(settings, 'IRONDB_SO_RCVTIMEO'))
+        except AttributeError:
+            self.socket_receive_timeout = 0            
+        try:
             self.zipkin_enabled = getattr(settings, 'IRONDB_ZIPKIN_ENABLED')
         except AttributeError:
             self.zipkin_enabled = False
@@ -193,17 +204,27 @@ class IRONdbLocalSettings(object):
                 self.zipkin_event_trace_level = 0
         except AttributeError:
             self.zipkin_event_trace_level = 0
-        try:
-            self.parallel_http = int(getattr(settings, 'IRONDB_PARALLEL_HTTP'))
-        except AttributeError:
-            self.parallel_http = 0
+
+
+
+class SockOpsAdapter(requests.adapters.HTTPAdapter):
+    """Override adapter for passing socket options"""
+    def __init__(self, options, **kwargs):
+        self.options = options
+        super(SockOpsAdapter, self).__init__()
+    def init_poolmanager(self, connections, maxsize, block=False):
+        #log.info("init_poolmanager")
+        self.poolmanager = requests.adapters.PoolManager(num_pools=connections,
+                                   maxsize=maxsize,
+                                   block=block,
+                                   socket_options=self.options)
 
 
 class HTTPClient(object):
     """ IronDB specific HTTP client. """
-    __slots__ = ('parallel_http', 'headers', 'params', 'zipkin_level', 'tries', 'timeout', 'logger', 'caller')
+    __slots__ = ('parallel_http', 'headers', 'params', 'zipkin_level', 'tries', 'timeout', 'socket_receive_timeout', 'logger', 'caller')
 
-    def __init__(self, parallel_http=2, headers=None, params=None, zipkin_level=0, tries=1, timeout=(0,0), logger=None, caller=''):
+    def __init__(self, parallel_http=1, headers=None, params=None, zipkin_level=0, tries=1, timeout=(0,0), socket_receive_timeout=None, logger=None, caller=''):
         self.parallel_http = parallel_http
         if headers == None:
             headers = {}
@@ -214,9 +235,10 @@ class HTTPClient(object):
         self.zipkin_level = zipkin_level
         self.tries = tries
         self.timeout = timeout
+        self.socket_receive_timeout = socket_receive_timeout
         self.logger = logger
         self.caller = caller
-                                
+
     def request(self, method='GET', urls=None, start_time=0, end_time=0):
 
         def _load_url(method, url, params, headers, timeout, zipkin_level, logger):
@@ -232,8 +254,19 @@ class HTTPClient(object):
                     headers['X-Mtev-Trace-Event'] = '1'
                 elif zipkin_level == 2:
                     headers['X-Mtev-Trace-Event'] = '2'
-            query_start = time.gmtime()    
-            res = requests.request(method, url, params=params, json=params, headers=headers, timeout=timeout)
+
+            #log.info("build session")
+            client_session = requests.Session()
+            if self.socket_receive_timeout > 0:
+                __so_rcvtimeio = struct.pack('LL', self.socket_receive_timeout, 0)        
+                socket_options = urllib3.connection.HTTPConnection.default_socket_options + [
+                (socket.SOL_SOCKET, socket.SO_RCVTIMEO, __so_rcvtimeio),
+                ]
+                #log.info("set SO_RCVTIMEO to %d" % self.socket_receive_timeout)
+                client_session.mount('http://', SockOpsAdapter(socket_options))
+                client_session.mount('https://', SockOpsAdapter(socket_options))
+            query_start = time.gmtime()
+            res = client_session.request(method, url, params=params, json=params, headers=headers, timeout=timeout)
             res.raise_for_status()
             if res.status_code == 200:
                 if res.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
@@ -321,9 +354,9 @@ class HTTPClient(object):
 
 class IRONdbMeasurementFetcher(object):
     __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'rollup_window', 'timeout', 'connection_timeout', 'retries',
-                 'zipkin_enabled', 'zipkin_event_trace_level', 'parallel_http')
+                 'zipkin_enabled', 'zipkin_event_trace_level', 'parallel_http', 'socket_receive_timeout')
 
-    def __init__(self, headers, timeout, connection_timeout, db_rollups, rollup_window, retries, zipkin_enabled, zipkin_event_trace_level, parallel_http):
+    def __init__(self, headers, timeout, connection_timeout, db_rollups, rollup_window, retries, zipkin_enabled, zipkin_event_trace_level, parallel_http, socket_receive_timeout):
         self.leaves = list()
         self.lock = threading.Lock()
         self.fetched = False
@@ -339,6 +372,7 @@ class IRONdbMeasurementFetcher(object):
         if headers:
             self.headers = headers
         self.parallel_http = parallel_http
+        self.socket_receive_timeout = socket_receive_timeout
 
     def add_leaf(self, leaf_name, leaf_data):
         self.leaves.append({'leaf_name': leaf_name, 'leaf_data': leaf_data})
@@ -365,6 +399,7 @@ class IRONdbMeasurementFetcher(object):
                 q = HTTPClient(parallel_http=self.parallel_http, headers=send_headers, params=params, 
                     zipkin_level=self.zipkin_event_trace_level, tries=self.retries,
                     timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)),
+                    socket_receive_timeout=self.socket_receive_timeout,
                     logger=query_log, caller='IRONdbMeasurementFetcher.fetch')                
                 self.fetched = False
                 result = q.request('POST', url_list, start_time, end_time)
@@ -410,7 +445,7 @@ class IRONdbFinder(BaseFinder):
     __slots__ = ('disabled', 'batch_size', 'database_rollups', 'timeout',
                  'connection_timeout', 'headers', 'disabled', 'max_retries',
                  'query_log_enabled', 'zipkin_enabled',
-                 'zipkin_event_trace_level', 'parallel_http')
+                 'zipkin_event_trace_level', 'parallel_http', 'socket_receive_timeout')
 
     def __init__(self, config=None):
         global urls
@@ -433,6 +468,7 @@ class IRONdbFinder(BaseFinder):
             urls = URLs(urls)
             self.max_retries = urls.host_count
             self.parallel_http = 2
+            self.socket_receive_timeout = None
         else:
             IRONdbLocalSettings.load(self)
 
@@ -448,7 +484,7 @@ class IRONdbFinder(BaseFinder):
 
     def newfetcher(self, fset, headers):
         fetcher = IRONdbMeasurementFetcher(headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.parallel_http)
+                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.parallel_http, self.socket_receive_timeout)
         fset.append(fetcher)
         return fetcher
 
@@ -472,6 +508,7 @@ class IRONdbFinder(BaseFinder):
             r = HTTPClient(parallel_http=self.parallel_http, headers=name_headers, params=name_params, 
                 zipkin_level=self.zipkin_event_trace_level, tries=self.max_retries,
                 timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)),
+                socket_receive_timeout=self.socket_receive_timeout,
                 logger=self, caller='IRONdbFinder.fetch')             
             result = r.request('GET', url_list, start_time, end_time)
             if result:
@@ -557,6 +594,7 @@ class IRONdbFinder(BaseFinder):
         r = HTTPClient(parallel_http=self.parallel_http, headers=name_headers, params={'query': query.pattern}, 
             zipkin_level=self.zipkin_event_trace_level, tries=self.max_retries,
             timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)),
+            socket_receive_timeout=self.socket_receive_timeout,
             logger=None, caller='IRONdbFinder.find_nodes')                
         names = r.request('GET', url_list, start_time=0, end_time=0)
         if settings.DEBUG:
@@ -568,7 +606,7 @@ class IRONdbFinder(BaseFinder):
             measurement_headers = copy.deepcopy(self.headers)
             measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
             fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                            self.zipkin_enabled, self.zipkin_event_trace_level, self.parallel_http)
+                                            self.zipkin_enabled, self.zipkin_event_trace_level, self.parallel_http, self.socket_receive_timeout)
 
             for name in names:
                 if 'leaf' in name and 'leaf_data' in name:
@@ -601,6 +639,7 @@ class IRONdbTagFetcher(BaseTagDB):
         r = HTTPClient(parallel_http=self.parallel_http, headers=tag_headers, params=query, 
             zipkin_level=self.zipkin_event_trace_level, tries=self.max_tries, 
             timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)),
+            socket_receive_timeout=self.socket_receive_timeout,
             logger=None, caller='IRONdbTagFetcher.%s' % (source))                
         result = r.request('GET', url_list, start_time=0, end_time=0)
         if settings.DEBUG:
