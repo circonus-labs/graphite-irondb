@@ -111,7 +111,7 @@ the expense of reading all known time series data to find active ranges.
 
 `IRONDB_CONNECTION_TIMEOUT_MS` is optional and is the number of milliseconds the plugin will wait to establish a connection to an IronDB URL. Before version 0.0.22, the default was 3005 ms. Now it's dropped to 300 ms, assuming IronDB is located in the LAN network close to Graphite server, so in case of WAN connection, please increase it.
 
-`IRONDB_TIMEOUT_MS` is the number of milliseconds the plugin will wait for the IronDB to send a response. (Specifically, it's the number of seconds that the client will wait between bytes sent from the server. In 99.9% of cases, this is the time before the server sends the first byte) and will default to 1000 ms. Please note that's not set an absolute timeout, after which the plugin will cut off queries. Please use [Graphite parameters](https://graphite.readthedocs.io/en/latest/config-local-settings.html) 
+`IRONDB_TIMEOUT_MS` is the number of milliseconds the plugin will wait for IronDB to send a response, or any pause between bytes of the response (typically time until first byte).  Default 1000 ms. Please note this is not an absolute connection length timeout. Please see [Graphite parameters](https://graphite.readthedocs.io/en/latest/config-local-settings.html) 
 `FIND_TIMEOUT` (default 3 seconds) and `FETCH_TIMEOUT` (default 6 seconds) to set absolute find or fetch timeout accordingly.
 
 `IRONDB_MAX_RETRIES` is optional and will default to 2. Please note that plugin will retry next host in `IRONDB_URLS` list in case of connection/read timeout or data decode error (but not HTTP error).
