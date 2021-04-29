@@ -5,7 +5,7 @@ Graphite-IRONdb
 
 A plugin for using graphite with the IRONdb from Circonus.
 
-Requires Graphite-web 1.1.X.
+Supports Graphite-web 0.9.x, 1.0.x and 1.1.X.
 
 Installation
 ------------
@@ -54,6 +54,7 @@ In your graphite's `local_settings.py`:
     IRONDB_CONNECTION_TIMEOUT_MS = 3005
     IRONDB_MAX_RETRIES = 2
     IRONDB_QUERY_LOG = False
+    IRONDB_URLS_ROTATE = True
 
 Where `irondb-host` is the DNS or IP of an IRONdb node, `port`
 (usually 8112) is the listening port for IRONdb, and <account> is some
@@ -108,14 +109,15 @@ in order to group data properly.
 and will default to True. IRONdb supports tracking of metric activity without
 the expense of reading all known time series data to find active ranges.
 
-`IRONDB_TIMEOUT_MS` is optional and will default to 10000.  With IRONdb >= 0.9.8
-this will set an absolute timeout after which queries will be cut off.
+`IRONDB_CONNECTION_TIMEOUT_MS` is optional and is the number of milliseconds the plugin will wait to establish a connection to an IronDB URL. Before version 0.0.22, the default was 3005 ms. Now it's dropped to 300 ms, assuming IronDB is located in the LAN network close to Graphite server, so in case of WAN connection, please increase it.
 
-`IRONDB_CONNECTION_TIMEOUT_MS` is optional and will default to 3005.
+`IRONDB_TIMEOUT_MS` is the number of milliseconds the plugin will wait for IronDB to send a response, or any pause between bytes of the response (typically time until first byte).  Default 1000 ms. Please note this is not an absolute connection length timeout. Please see [Graphite parameters](https://graphite.readthedocs.io/en/latest/config-local-settings.html) 
+`FIND_TIMEOUT` (default 3 seconds) and `FETCH_TIMEOUT` (default 6 seconds) to set absolute find or fetch timeout accordingly.
 
-`IRONDB_MAX_RETRIES` is optional and will default to 2.  Only failures to 
-connect are retried (see `IRONDB_CONNECTION_TIMEOUT_MS`).  Timeouts or
-other failures are not retried to prevent thundering herd problems.
+`IRONDB_MAX_RETRIES` is optional and will default to 2. Please note that plugin will retry next host in `IRONDB_URLS` list in case of connection/read timeout or data decode error (but not HTTP error).
+
+`IRONDB_URLS_ROTATE` is also optional and if enabled will pseudorandomly rotate list of URLs in
+`IRONDB_URLS` for every instance of plugin, effectively balancing HTTP requests between them.
 
 `IRONDB_QUERY_LOG` is optional and will default to False.  Will log out
 all queries to the IRONdb backend nodes into the info.log if this is set
@@ -156,3 +158,4 @@ Changelog
 * **0.0.19** (2019-03-05): Improve FlatBuffer error handling. Add Zipkin header support
 * **0.0.20** (2019-05-03): Don't issue IRONdb series requests for empty find results, Add `IRONDB_ROLLUP_WINDOW` setting, Respect `IRONDB_BATCH_SIZE` setting, fix fetcher keyerror, use first start time when all series arrive late
 * **0.0.21** (2019-05-14): Fix memory leak introduced in 0.0.20
+* **0.0.22** (TBD): Timeout fixes and URL rotation added.
