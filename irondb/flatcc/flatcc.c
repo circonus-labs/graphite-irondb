@@ -15,11 +15,11 @@
 #define SET_METRIC_BOOL(d, m, ns, s)            _pydict_set(d, #s, PyBool_FromLong(_FB_METRIC(m, ns, s, 0)))
 #define SET_METRIC_LONG_ALT(d, alt_s, m, ns, s) _pydict_set(d, #alt_s, PyLong_FromLong(_FB_METRIC(m, ns, s, 0)))
 #define SET_METRIC_LONG(d, m, ns, s)            SET_METRIC_LONG_ALT(d, s, m, ns, s)
-#define SET_METRIC_STR_ALT(d, alt_s, m, ns, s)  _pydict_set(d, #alt_s, PyString_FromString(_FB_METRIC(m, ns, s, "")))
+#define SET_METRIC_STR_ALT(d, alt_s, m, ns, s)  _pydict_set(d, #alt_s, PyUnicode_FromString(_FB_METRIC(m, ns, s, "")))
 #define SET_METRIC_STR(d, m, ns, s)             SET_METRIC_STR_ALT(d, s, m, ns, s)
 
 static void _pydict_set(PyObject *dict, const char *strkey, PyObject *pyval) {
-    PyObject *pykey = PyString_FromString(strkey);
+    PyObject *pykey = PyUnicode_FromString(strkey);
     PyDict_SetItem(dict, pykey, pyval);
     Py_DECREF(pykey);
     Py_DECREF(pyval);

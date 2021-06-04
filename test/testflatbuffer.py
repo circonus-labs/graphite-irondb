@@ -68,7 +68,7 @@ if __name__ == "__main__":
             arr.append(e)
 
         MetricSearchResultList.MetricSearchResultListStartResultsVector(builder, num_entries)
-        for x in reversed(xrange(num_entries)):
+        for x in reversed(range(num_entries)):
             builder.PrependUOffsetTRelative(arr[x])
         results = builder.EndVector(num_entries)
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         builder.Finish(e)
         buf = builder.Output()
 
-        f = open(filename, 'w')
+        f = open(filename, 'wb')
         f.write(buf)
         f.close()
 
@@ -107,9 +107,9 @@ if __name__ == "__main__":
                 dp_array[x].append(e)
 
         built_datapoints_array = []
-        for x in reversed(xrange(num_entries)):
+        for x in reversed(range(num_entries)):
             MetricGetSeriesData.MetricGetSeriesDataStartDataVector(builder, 100)
-            for y in reversed(xrange(100)):
+            for y in reversed(range(100)):
                 builder.PrependUOffsetTRelative(dp_array[x][y])
             seriesdata = builder.EndVector(100)
             built_datapoints_array.append(seriesdata)
@@ -124,7 +124,7 @@ if __name__ == "__main__":
             data_arr.append(e)
 
         MetricGetResult.MetricGetResultStartSeriesVector(builder, num_entries)
-        for x in reversed(xrange(num_entries)):
+        for x in reversed(range(num_entries)):
             builder.PrependUOffsetTRelative(data_arr[x])
         series = builder.EndVector(num_entries)
 
@@ -138,14 +138,14 @@ if __name__ == "__main__":
         builder.Finish(e)
         buf = builder.Output()
 
-        f = open(filename, 'w')
+        f = open(filename, 'wb')
         f.write(buf)
         f.close()
 
         eprint("Wrote data to " + filename)
 
     elif cmd == "read_find_data":
-        f = open(filename, 'r')
+        f = open(filename, 'rb')
         buf = f.read()
         f.close()
 
@@ -166,7 +166,7 @@ if __name__ == "__main__":
             eprint("Failed to parse find data from " + filename)
 
     elif cmd == "read_get_data":
-        f = open(filename, 'r')
+        f = open(filename, 'rb')
         buf = f.read()
         f.close()
 
