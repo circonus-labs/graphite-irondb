@@ -158,4 +158,4 @@ Changelog
 * **0.0.19** (2019-03-05): Improve FlatBuffer error handling. Add Zipkin header support
 * **0.0.20** (2019-05-03): Don't issue IRONdb series requests for empty find results, Add `IRONDB_ROLLUP_WINDOW` setting, Respect `IRONDB_BATCH_SIZE` setting, fix fetcher keyerror, use first start time when all series arrive late
 * **0.0.21** (2019-05-14): Fix memory leak introduced in 0.0.20
-* **0.0.22** (TBD): Timeout fixes and URL rotation added.
+* **0.0.22** (2021-06-15): Timeout fixes and URL rotation added.
