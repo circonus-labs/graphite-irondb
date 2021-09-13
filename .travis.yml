@@ -4,10 +4,11 @@ os:
 compiler:
   - gcc
 
-language: python
+language:
+  - python
 
 python:
-  - "3.9"
+  - "2.7"
 
 script:
   - buildtools/ci-travis.sh
