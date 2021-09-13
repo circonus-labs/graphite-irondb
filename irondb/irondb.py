@@ -11,7 +11,7 @@ try:
 except ImportError:
     JSONDecodeError = ValueError
 try:
-    from urlparse import urlparse, urlunparse
+    from urllib.parse import urlparse, urlunparse
 except ImportError:
     from urllib.parse import urlparse, urlunparse
 
@@ -33,10 +33,10 @@ except ImportError:
     BaseTagDB = object
 
 try:
-    import irondb.flatcc as irondb_flatbuf
+    from . import flatcc as irondb_flatbuf
     log.info("IRONdb Using flatcc native Flatbuffer module")
 except ImportError:
-    import irondb.flatbuf as irondb_flatbuf
+    from . import flatbuf as irondb_flatbuf
     log.info("IRONdb Using pure Python Flatbuffer module")
 log.info(irondb_flatbuf)
 

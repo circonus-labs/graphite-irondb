@@ -24,7 +24,7 @@ if __name__ == "__main__":
     do_output = "-o" in sys.argv or "--output" in sys.argv
     use_flatcc = "-c" in sys.argv or "--flatcc" in sys.argv
     if use_flatcc:
-        import irondb.flatcc as irondb_flatbuf
+        from ..irondb import flatcc as irondb_flatbuf
     else:
         import irondb.flatbuf as irondb_flatbuf
     if cmd.startswith("read"):
