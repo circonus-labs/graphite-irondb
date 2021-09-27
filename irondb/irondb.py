@@ -36,7 +36,7 @@ try:
     import irondb.flatcc as irondb_flatbuf
     log.info("IRONdb Using flatcc native Flatbuffer module")
 except ImportError:
-    import irondb.flatbuf as irondb_flatbuf
+    from . import flatbuf as irondb_flatbuf
     log.info("IRONdb Using pure Python Flatbuffer module")
 log.info(irondb_flatbuf)
 

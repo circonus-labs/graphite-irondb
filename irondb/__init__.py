@@ -3,5 +3,5 @@ try:
 except ImportError:
     pass
 else:
-    from irondb.irondb import *
+    from irondb import *
     __all__ = ['IRONdbFinder', 'IronDBFinder', 'IRONdbTagFetcher', 'IronDBTagFetcher']
