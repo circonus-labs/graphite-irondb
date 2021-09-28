@@ -1,5 +1,3 @@
-import flatbuffers
-
 from . metrics.MetricSearchResultList import MetricSearchResultList
 from . metrics.MetricGetResult import MetricGetResult
 

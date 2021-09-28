@@ -10,10 +10,12 @@ try:
     from json.decoder import JSONDecodeError
 except ImportError:
     JSONDecodeError = ValueError
+from future.standard_library import install_aliases
+install_aliases()
 try:
-    from urlparse import urlparse, urlunparse
-except ImportError:
     from urllib.parse import urlparse, urlunparse
+except ImportError:
+    from urlparse import urlparse, urlunparse
 
 import requests
 import socket
@@ -33,13 +35,12 @@ except ImportError:
     BaseTagDB = object
 
 try:
-    import irondb.flatcc as irondb_flatbuf
+    from .flatcc import flatcc as irondb_flatbuf
     log.info("IRONdb Using flatcc native Flatbuffer module")
 except ImportError:
     from . import flatbuf as irondb_flatbuf
     log.info("IRONdb Using pure Python Flatbuffer module")
 log.info(irondb_flatbuf)
-
 
 def strip_prefix(path):
     prefix = None
@@ -429,7 +430,7 @@ class IRONdbFinder(BaseFinder):
         in_this_batch = 0
         fset = []
         fetcher = self.newfetcher(fset, measurement_headers)
-        for pattern, names in all_names.items():
+        for pattern, names in list(all_names.items()):
             for name in names:
                 if 'leaf' in name and 'leaf_data' in name:
                     if self.batch_size == 0 or in_this_batch >= self.batch_size:
@@ -443,7 +444,7 @@ class IRONdbFinder(BaseFinder):
 
         results = []
         first_correction = False
-        for pattern, names in all_names.items():
+        for pattern, names in list(all_names.items()):
             for name in names:
                 fetcher = fset[0]
                 if 'fetcher' in name:

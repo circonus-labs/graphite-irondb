@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # coding: utf-8
 import sys
 from setuptools import setup, find_packages, Extension
@@ -22,8 +23,9 @@ def build_ext(argv, setup_args):
             'irondb.flatcc',
             sources=['irondb/flatcc/flatcc.c'],
             extra_compile_args=['-I%s/include'%with_flatcc,'-std=c99','-fPIC','-O5','-Wno-strict-prototypes'],
-            extra_link_args=['-L%s/lib'%with_flatcc,'-Wl,-rpath=%s/lib'%with_flatcc,'-lflatccrt']
+            extra_link_args=['-L%s/lib'%with_flatcc,'-Wl,-rpath,%s/lib'%with_flatcc,'-lflatccrt']
         )]
+
 
 setup_args=dict(
     name='graphite-irondb',
@@ -47,7 +49,7 @@ setup_args=dict(
         'Topic :: System :: Monitoring',
     ),
     install_requires=(
-        'requests','physiq-flatbuffers'
+        'requests','physiq-flatbuffers','future'
     )
 )
 

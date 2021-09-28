@@ -45,8 +45,8 @@ class MetricGetSeriesData(object):
             return self._tab.VectorLen(o)
         return 0
 
-def MetricGetSeriesDataStart(builder): builder.StartObject(2)
-def MetricGetSeriesDataAddName(builder, name): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(name), 0)
-def MetricGetSeriesDataAddData(builder, data): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(data), 0)
-def MetricGetSeriesDataStartDataVector(builder, numElems): return builder.StartVector(4, numElems, 4)
-def MetricGetSeriesDataEnd(builder): return builder.EndObject()
+    def MetricGetSeriesDataStart(builder): builder.StartObject(2)
+    def MetricGetSeriesDataAddName(builder, name): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(name), 0)
+    def MetricGetSeriesDataAddData(builder, data): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(data), 0)
+    def MetricGetSeriesDataStartDataVector(builder, numElems): return builder.StartVector(4, numElems, 4)
+    def MetricGetSeriesDataEnd(builder): return builder.EndObject()

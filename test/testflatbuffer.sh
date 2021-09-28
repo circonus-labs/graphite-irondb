@@ -3,7 +3,7 @@ set -e
 TEST=$(dirname $(readlink -f $0))
 if [ -z "$PYTHON_BIN" ]
 then
-    PYTHON_BIN="$(command -v python)"
+    PYTHON_BIN="$(command -v python3)"
 fi
 testflatbuffer () {
     $PYTHON_BIN $TEST/testflatbuffer.py "$@"
@@ -20,3 +20,6 @@ testflatbuffer read_get_data irondb_get.bin -c -o > irondb_get_flatcc.json
 
 diff -qs irondb_find_py.json irondb_find_flatcc.json
 diff -qs irondb_get_py.json irondb_get_flatcc.json
+
+rm *.json
+rm *.bin

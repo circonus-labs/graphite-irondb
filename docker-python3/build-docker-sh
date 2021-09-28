@@ -1,0 +1,1 @@
+docker build . -t graphite-web-python3

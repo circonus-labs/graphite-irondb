@@ -6,21 +6,23 @@ RUN apt-get update \
         nginx \
         python2-minimal \
         software-properties-common \
-        gunicorn \
-        curl \
-        python3 \
-        python3-distutils \
-        python3-apt \
-        python3-dev \
         python-dev \
         libcairo2-dev \
         libffi-dev \
         build-essential \
+        curl \
+        cmake \
+        ninja-build \
      && apt-add-repository universe && apt-get update && apt-get install -y python2.7 \
      && curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py \
-     && python2 get-pip.py && python3 get-pip.py
+     && python2 get-pip.py
 
-FROM distro as graphite
+FROM distro as flatcc
+RUN git clone https://github.com/dvidelabs/flatcc.git
+RUN cd flatcc && scripts/build.sh
+RUN ln -s /flatcc /opt/circonus
+
+FROM flatcc as graphite
 SHELL ["/bin/bash", "-c"]
 ENV GRAPHITE_ROOT /opt/graphite
 ENV CONF_DIR /opt/graphite/conf
@@ -32,8 +34,6 @@ RUN source /opt/graphite/bin/activate && pip2 install --no-binary=:all: https://
 RUN source /opt/graphite/bin/activate && pip2 install --no-binary=:all: https://github.com/graphite-project/carbon/tarball/master
 RUN source /opt/graphite/bin/activate && pip2 install --no-binary=:all: https://github.com/graphite-project/graphite-web/tarball/master
 RUN source /opt/graphite/bin/activate && pip2 install gunicorn
-RUN git clone https://github.com/circonus-labs/graphite-irondb.git
-RUN source /opt/graphite/bin/activate && cd /graphite-irondb && python2 setup.py install --pure-python
 RUN source /opt/graphite/bin/activate && PYTHONPATH=$GRAPHITE_ROOT/webapp django-admin.py migrate --settings=graphite.settings
 RUN chmod 777 /opt/graphite/storage/graphite.db
 COPY src/graphite /etc/nginx/sites-available/graphite

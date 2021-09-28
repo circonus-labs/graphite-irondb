@@ -1,0 +1,1 @@
+docker run --rm -v $(dirname $(pwd)):/graphite-irondb -p 80:80 graphite-web-python2 graphite-web-python2
