@@ -98,7 +98,7 @@ parse_params() {
   args=("$@")
 
   # check required params and arguments
-  [[ -z "${CIRCONUS_API_KEY}" ]] && [[ ! ${test} ]] \
+  [[ -z "${CIRCONUS_API_KEY}" ]] && [[ ${test_only} = false ]] \
    && die "CIRCONUS_API_KEY is required for connection to api.circonus.com"
   [[ $python2 = true ]] && [[ $python3 = true ]] \
    && die "Please select either --python2 or --python3."
@@ -111,7 +111,7 @@ parse_params "$@"
 setup_colors
 
 # script logic here
-
+cd $script_dir
 msg "${BLUE}Parameters:${NOFORMAT}"
 [[ ! -z "${CIRCONUS_API_KEY}" ]] && msg "- Circonus API Key: ${CIRCONUS_API_KEY}"
 msg "- Python Version: ${python-version}"
