@@ -19,7 +19,7 @@ $ cd graphite-irondb
 
 Then, to install using [`flatcc`](https://github.com/dvidelabs/flatcc) library for FlatBuffers:
 ```
-$ sudo python setup.py install --with-flatcc=PREFIX
+$ sudo python setup.py install --with-flatcc=PREFIX # where PREFIX is equal to the location of the flatt cc library.
 ```
 **Or:** To install as pure Python:
 ```

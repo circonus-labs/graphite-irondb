@@ -2,11 +2,13 @@
 set -e
 if [ -z "$PYTHON_BIN" ]
 then
-    PYTHON_BIN="$(command -v python)"
+    PYTHON_BIN="$(command -v python3)"
 fi
 
 install_flatcc () {
-    cd dist
+    [[ -d ./dist ]] && rm -rf ./dist && mkdir -p ./dist/py
+    [[ -d ./build ]] && rm -rf ./build
+    cd ./dist
     git clone https://github.com/dvidelabs/flatcc
     cmake flatcc \
         -DBUILD_SHARED_LIBS=on \

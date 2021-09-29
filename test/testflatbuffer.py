@@ -14,7 +14,6 @@ import irondb.metrics.MetricGetResult as MetricGetResult
 import irondb.metrics.MetricGetSeriesData as MetricGetSeriesData
 import irondb.metrics.MetricGetSeriesDataPoint as MetricGetSeriesDataPoint
 
-
 GRAPHITE_RECORD_DATA_POINT_TYPE_NULL = 0
 GRAPHITE_RECORD_DATA_POINT_TYPE_DOUBLE = 1
 
@@ -24,8 +23,9 @@ if __name__ == "__main__":
     do_output = "-o" in sys.argv or "--output" in sys.argv
     use_flatcc = "-c" in sys.argv or "--flatcc" in sys.argv
     if use_flatcc:
-        import irondb.flatcc as irondb_flatbuf
+        from irondb import flatcc as irondb_flatbuf
     else:
+        #from irondb import flatbuf as irondb_flatbuf
         import irondb.flatbuf as irondb_flatbuf
     if cmd.startswith("read"):
         eprint("Using Flatbuffer module: " + irondb_flatbuf.__name__)
@@ -68,7 +68,7 @@ if __name__ == "__main__":
             arr.append(e)
 
         MetricSearchResultList.MetricSearchResultListStartResultsVector(builder, num_entries)
-        for x in reversed(xrange(num_entries)):
+        for x in reversed(list(range(num_entries))):
             builder.PrependUOffsetTRelative(arr[x])
         results = builder.EndVector(num_entries)
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         builder.Finish(e)
         buf = builder.Output()
 
-        f = open(filename, 'w')
+        f = open(filename, 'wb')
         f.write(buf)
         f.close()
 
@@ -107,9 +107,9 @@ if __name__ == "__main__":
                 dp_array[x].append(e)
 
         built_datapoints_array = []
-        for x in reversed(xrange(num_entries)):
+        for x in reversed(list(range(num_entries))):
             MetricGetSeriesData.MetricGetSeriesDataStartDataVector(builder, 100)
-            for y in reversed(xrange(100)):
+            for y in reversed(list(range(100))):
                 builder.PrependUOffsetTRelative(dp_array[x][y])
             seriesdata = builder.EndVector(100)
             built_datapoints_array.append(seriesdata)
@@ -124,7 +124,7 @@ if __name__ == "__main__":
             data_arr.append(e)
 
         MetricGetResult.MetricGetResultStartSeriesVector(builder, num_entries)
-        for x in reversed(xrange(num_entries)):
+        for x in reversed(list(range(num_entries))):
             builder.PrependUOffsetTRelative(data_arr[x])
         series = builder.EndVector(num_entries)
 
@@ -138,14 +138,14 @@ if __name__ == "__main__":
         builder.Finish(e)
         buf = builder.Output()
 
-        f = open(filename, 'w')
+        f = open(filename, 'wb')
         f.write(buf)
         f.close()
 
         eprint("Wrote data to " + filename)
 
     elif cmd == "read_find_data":
-        f = open(filename, 'r')
+        f = open(filename, 'rb')
         buf = f.read()
         f.close()
 
@@ -161,12 +161,12 @@ if __name__ == "__main__":
             eprint("Total Seconds To Run: " + str(total_time))
             eprint("Entries Per Second: " + str(len(array) / total_time))
             if do_output:
-                print(json.dumps(array, indent=4, sort_keys=True))
+                print((json.dumps(array, indent=4, sort_keys=True)))
         else:
             eprint("Failed to parse find data from " + filename)
 
     elif cmd == "read_get_data":
-        f = open(filename, 'r')
+        f = open(filename, 'rb')
         buf = f.read()
         f.close()
 
@@ -182,7 +182,7 @@ if __name__ == "__main__":
             eprint("Total Seconds To Run: " + str(total_time))
             eprint("Entries Per Second: " + str(len(datadict["series"]) / total_time))
             if do_output:
-                print(json.dumps(datadict, indent=4, sort_keys=True))
+                print((json.dumps(datadict, indent=4, sort_keys=True)))
         else:
             eprint("Failed to parse get data from " + filename)
 

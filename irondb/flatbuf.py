@@ -1,10 +1,9 @@
-import flatbuffers
-
-from metrics.MetricSearchResultList import MetricSearchResultList
-from metrics.MetricGetResult import MetricGetResult
+from . metrics.MetricSearchResultList import MetricSearchResultList
+from . metrics.MetricGetResult import MetricGetResult
 
 class FlatBufferError(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        pass
 
 #record types used by irondb in flatbuffer data
 #to determine data type
@@ -21,15 +20,15 @@ def metric_find_results(content):
             result = root.Results(x)
             entry = {}
             entry["leaf"] = bool(result.Leaf())
-            entry["name"] = result.Name()
+            entry["name"] = result.Name().decode('utf-8')
             if entry["leaf"] == True:
               leaf_dict = {}
               leaf_data = result.LeafData()
-              leaf_dict["uuid"] = leaf_data.Uuid()
-              leaf_dict["check_name"] = leaf_data.CheckName()
-              leaf_dict["name"] = leaf_data.MetricName()
-              leaf_dict["category"] = leaf_data.Category()
-              leaf_dict["egress_function"] = leaf_data.EgressFunction()
+              leaf_dict["uuid"] = leaf_data.Uuid().decode('utf-8')
+              leaf_dict["check_name"] = leaf_data.CheckName().decode('utf-8')
+              leaf_dict["name"] = leaf_data.MetricName().decode('utf-8')
+              leaf_dict["category"] = leaf_data.Category().decode('utf-8')
+              leaf_dict["egress_function"] = leaf_data.EgressFunction().decode('utf-8')
               entry["leaf_data"] = leaf_dict
             array.append(entry)
         return array
@@ -50,7 +49,7 @@ def metric_get_results(content):
         for x in range(0, length):
             series = root.Series(x)
             entry = {}
-            name = series.Name()
+            name = series.Name().decode('utf-8')
             data_length = series.DataLength()
             data_array = []
             for y in range(0, data_length):
