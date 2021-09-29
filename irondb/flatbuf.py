@@ -2,7 +2,8 @@ from . metrics.MetricSearchResultList import MetricSearchResultList
 from . metrics.MetricGetResult import MetricGetResult
 
 class FlatBufferError(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        pass
 
 #record types used by irondb in flatbuffer data
 #to determine data type

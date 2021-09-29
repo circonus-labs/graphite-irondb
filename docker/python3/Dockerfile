@@ -39,9 +39,7 @@ RUN tar xf /graphite-web.tar.gz
 RUN rm -rf /opt/graphite/webapp/graphite && mv /graphite-p*/webapp/graphite /opt/graphite/webapp/graphite
 RUN source /opt/graphite/bin/activate && pip install gunicorn
 RUN mkdir -p /opt/graphite/lib/python3.8/storage/log/webapp/ 
-#&& touch /opt/graphite/lib/python3.8/storage/log/webapp/info.log
 RUN source /opt/graphite/bin/activate && /opt/graphite/bin/django-admin.py migrate --settings=graphite.settings
-#RUN chmod 777 /opt/graphite/storage/graphite.db
 COPY src/graphite /etc/nginx/sites-available/graphite
 COPY src/graphite-web.service /etc/systemd/system/graphite-web.service
 COPY src/graphite-web.socket /etc/systemd/system/graphite-web.socket

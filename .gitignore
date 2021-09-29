@@ -141,3 +141,4 @@ cython_debug/
 /bin
 pyvenv.cfg
 /include
+/conf
