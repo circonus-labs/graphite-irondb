@@ -114,7 +114,7 @@ setup_colors
 cd $script_dir
 msg "${BLUE}Parameters:${NOFORMAT}"
 [[ ! -z "${CIRCONUS_API_KEY}" ]] && msg "- Circonus API Key: ${CIRCONUS_API_KEY}"
-msg "- Python Version: ${python-version}"
+msg "- Python Version: ${python_version}"
 msg "- Test only: ${test_only}"
 msg "- Pure Python: ${flatcc}"
 
