@@ -157,7 +157,7 @@ class IRONdbLocalSettings(object):
         except AttributeError:
             self.database_rollups = True
         try:
-            self.rollup_window = getattr(settings, 'IRONDB_ROLLUP_WINDOW')           
+            self.rollup_window = getattr(settings, 'IRONDB_ROLLUP_WINDOW')
         except AttributeError:
             self.rollup_window = (60 * 60 * 24 * 7 * 4) # one month
         try:
@@ -346,7 +346,7 @@ class IRONdbFinder(BaseFinder):
     __slots__ = ('disabled', 'batch_size', 'database_rollups', 'timeout',
                  'connection_timeout', 'headers', 'disabled', 'max_retries',
                  'query_log_enabled', 'zipkin_enabled',
-                 'zipkin_event_trace_level', 'max_step')
+                 'zipkin_event_trace_level', 'max_step', 'min_rollup_span')
 
     def __init__(self, config=None):
         global urls
@@ -369,6 +369,7 @@ class IRONdbFinder(BaseFinder):
             urls = URLs(urls)
             self.max_retries = urls.host_count
             self.max_step = None
+            self.min_rollup_span = 60
         else:
             IRONdbLocalSettings.load(self)
 
@@ -384,7 +385,7 @@ class IRONdbFinder(BaseFinder):
 
     def newfetcher(self, fset, headers):
         fetcher = IRONdbMeasurementFetcher(headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step)
+                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span)
         fset.append(fetcher)
         return fetcher
 
