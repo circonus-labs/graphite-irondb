@@ -105,6 +105,8 @@ data will be returned than may be necessary for rendering.  However,
 some graphite functions (like summarize) require finer resolution data
 in order to group data properly.
 
+`IRONDB_MIN_ROLLUP_SPAN` minimal rollup span for irondb data. Used in step calculation, default is 60.
+
 `IRONDB_USE_ACTIVITY_TRACKING` is an optional Python boolean (True|False)
 and will default to True. IRONdb supports tracking of metric activity without
 the expense of reading all known time series data to find active ranges.
@@ -133,6 +135,8 @@ enable additional event tracing. Right now, the only acceptable values
 are `0` (off), `1` (basic tracing), and `2` (detailed tracing). `2` can
 potentially cause performance issues - use this level sparingly. Only
 recommended for when trying to debug something specific.
+
+
 
 Changelog
 ---------

@@ -157,9 +157,13 @@ class IRONdbLocalSettings(object):
         except AttributeError:
             self.database_rollups = True
         try:
-            self.rollup_window = getattr(settings, 'IRONDB_ROLLUP_WINDOW')
+            self.rollup_window = getattr(settings, 'IRONDB_ROLLUP_WINDOW')           
         except AttributeError:
             self.rollup_window = (60 * 60 * 24 * 7 * 4) # one month
+        try:
+            self.min_rollup_span = getattr(settings, 'IRONDB_MIN_ROLLUP_SPAN')
+        except AttributeError:
+            self.min_rollup_span = 60  # secondds     
         try:
             mr = getattr(settings, 'IRONDB_MAX_RETRIES')
             if mr:
@@ -193,11 +197,12 @@ class IRONdbLocalSettings(object):
             self.zipkin_event_trace_level = 0
 
 
+
 class IRONdbMeasurementFetcher(object):
     __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'rollup_window', 'timeout', 'connection_timeout', 'retries',
-                 'zipkin_enabled', 'zipkin_event_trace_level')
+                 'zipkin_enabled', 'zipkin_event_trace_level', 'max_step', 'min_rollup_span')
 
-    def __init__(self, headers, timeout, connection_timeout, db_rollups, rollup_window, retries, zipkin_enabled, zipkin_event_trace_level):
+    def __init__(self, headers, timeout, connection_timeout, db_rollups, rollup_window, retries, zipkin_enabled, zipkin_event_trace_level, max_step, min_rollup_span):
         self.leaves = list()
         self.lock = threading.Lock()
         self.fetched = False
@@ -207,14 +212,17 @@ class IRONdbMeasurementFetcher(object):
         self.connection_timeout = connection_timeout
         self.database_rollups = db_rollups
         self.rollup_window = rollup_window
+        self.min_rollup_span = min_rollup_span
         self.retries = retries
         self.zipkin_enabled = zipkin_enabled
         self.zipkin_event_trace_level = zipkin_event_trace_level
+        self.max_step = max_step
         if headers:
             self.headers = headers
 
     def add_leaf(self, leaf_name, leaf_data):
         self.leaves.append({'leaf_name': leaf_name, 'leaf_data': leaf_data})
+
 
     def fetch(self, query_log, start_time, end_time):
         if (len(self.leaves) == 0):
@@ -248,6 +256,25 @@ class IRONdbMeasurementFetcher(object):
                                 send_headers['X-Mtev-Trace-Event'] = '1'
                             elif self.zipkin_event_trace_level == 2:
                                 send_headers['X-Mtev-Trace-Event'] = '2'
+                        log.debug("-- maxStep is {}".format(self.max_step))
+                        if self.max_step:
+                            max_step = int(self.max_step)
+                            rollup_list = [1,2,5,10,15,20,30,60,120,300,600,900,1200,1800,3600,7200,10800,21600,28800,43200,86400]
+                            # calculating span
+                            # target 480 datapoints in the window and use the rollup that best matches this
+                            # 480 comes from max effective resolution 1920px and no more than 1 datapoint per 4 pixels
+                            target = (end_time - start_time) / 480
+                            if target < self.min_rollup_span or not params['database_rollups']:
+                                target = self.min_rollup_span
+                            span = rollup_list[-1]    
+                            for r in rollup_list:
+                                if r >= target:
+                                    span = r
+                                    break
+                            log.debug("-- span is {}".format(span))
+                            if max_step < span:
+                                params['step'] = max_step
+                        log.debug("-- params is {}".format(params))        
                         d = requests.post(urls.series_multi, json = params, headers = send_headers,
                                           timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)))
                         d.raise_for_status()
@@ -319,7 +346,7 @@ class IRONdbFinder(BaseFinder):
     __slots__ = ('disabled', 'batch_size', 'database_rollups', 'timeout',
                  'connection_timeout', 'headers', 'disabled', 'max_retries',
                  'query_log_enabled', 'zipkin_enabled',
-                 'zipkin_event_trace_level')
+                 'zipkin_event_trace_level', 'max_step')
 
     def __init__(self, config=None):
         global urls
@@ -341,6 +368,7 @@ class IRONdbFinder(BaseFinder):
                 self.batch_size = config['irondb']['batch_size']
             urls = URLs(urls)
             self.max_retries = urls.host_count
+            self.max_step = None
         else:
             IRONdbLocalSettings.load(self)
 
@@ -356,7 +384,7 @@ class IRONdbFinder(BaseFinder):
 
     def newfetcher(self, fset, headers):
         fetcher = IRONdbMeasurementFetcher(headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level)
+                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step)
         fset.append(fetcher)
         return fetcher
 
@@ -366,6 +394,8 @@ class IRONdbFinder(BaseFinder):
 
     def fetch(self, patterns, start_time, end_time, now=None, requestContext=None):
         log.debug("IRONdbFinder.fetch called")
+        log.debug("-- requestContext is {}".format(requestContext))
+        self.max_step = requestContext.get('maxStep', None)
         all_names = {}
         for pattern in patterns:
             log.debug("IRONdbFinder.fetch pattern: %s" % pattern)
