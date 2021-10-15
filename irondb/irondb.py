@@ -6,6 +6,10 @@ import copy
 import json
 import os
 import binascii
+import pickle
+import re
+from six import string_types
+
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
@@ -19,6 +23,7 @@ import requests
 import socket
 from django.conf import settings
 
+from graphite.render.attime import parseTimeOffset
 from graphite.intervals import Interval, IntervalSet
 from graphite.node import LeafNode, BranchNode
 from graphite.logger import log
@@ -195,7 +200,7 @@ class IRONdbLocalSettings(object):
                 self.zipkin_event_trace_level = 0
         except AttributeError:
             self.zipkin_event_trace_level = 0
-
+        self.max_step = None
 
 
 class IRONdbMeasurementFetcher(object):
@@ -256,24 +261,8 @@ class IRONdbMeasurementFetcher(object):
                                 send_headers['X-Mtev-Trace-Event'] = '1'
                             elif self.zipkin_event_trace_level == 2:
                                 send_headers['X-Mtev-Trace-Event'] = '2'
-                        log.debug("-- maxStep is {}".format(self.max_step))
                         if self.max_step:
-                            max_step = int(self.max_step)
-                            rollup_list = [1,2,5,10,15,20,30,60,120,300,600,900,1200,1800,3600,7200,10800,21600,28800,43200,86400]
-                            # calculating span
-                            # target 480 datapoints in the window and use the rollup that best matches this
-                            # 480 comes from max effective resolution 1920px and no more than 1 datapoint per 4 pixels
-                            target = (end_time - start_time) / 480
-                            if target < self.min_rollup_span or not params['database_rollups']:
-                                target = self.min_rollup_span
-                            span = rollup_list[-1]    
-                            for r in rollup_list:
-                                if r >= target:
-                                    span = r
-                                    break
-                            log.debug("-- span is {}".format(span))
-                            if max_step < span:
-                                params['step'] = max_step
+                            params['step'] = self.max_step      
                         log.debug("-- params is {}".format(params))        
                         d = requests.post(urls.series_multi, json = params, headers = send_headers,
                                           timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)))
@@ -395,8 +384,49 @@ class IRONdbFinder(BaseFinder):
 
     def fetch(self, patterns, start_time, end_time, now=None, requestContext=None):
         log.debug("IRONdbFinder.fetch called")
-        log.debug("-- requestContext is {}".format(requestContext))
-        self.max_step = requestContext.get('maxStep', None)
+        #log.debug("-- requestContext is {}".format(requestContext))
+        targets_serialized = requestContext.get('targets_serialized', None)
+        if targets_serialized and not self.max_step:
+            targets = pickle.loads(targets_serialized)
+            # TODO: create nice regex
+            m = re.compile(r'moving.*\(.*,([0-9\'"sminhdwoy]+).*\)')
+            for t in targets:
+                log.debug("-- target is {}".format(t))
+                max_step = 0
+                match = m.search(t)
+                if match:
+                    windowSize = match.group(1).strip('\"').strip('\'')
+                    log.debug("-- windowSize is {}".format(windowSize))
+                    try:
+                        deltaSeconds = int(windowSize)
+                    except ValueError:
+                        delta = parseTimeOffset(windowSize)
+                        log.debug("-- delta is {}".format(delta))
+                        deltaSeconds = abs(delta.seconds + (delta.days * 86400))
+                    log.debug("-- deltaSeconds is {}".format(deltaSeconds))
+                    if max_step < deltaSeconds:
+                        max_step = deltaSeconds
+            log.debug("-- max_step is {}".format(max_step))
+            if max_step > 0:            
+                rollup_list = [1,2,5,10,15,20,30,60,120,300,600,900,1200,1800,3600,7200,10800,21600,28800,43200,86400]
+                # calculating span
+                # target 480 datapoints in the window and use the rollup that best matches this
+                # 480 comes from max effective resolution 1920px and no more than 1 datapoint per 4 pixels
+                target = (end_time - start_time) / 480
+                if target < self.min_rollup_span or not self.database_rollups:
+                    target = self.min_rollup_span
+                span = rollup_list[-1]    
+                for r in rollup_list:
+                    if r >= target:
+                        span = r
+                        break
+                log.debug("-- span is {}".format(span))
+                if max_step < span:
+                    self.max_step = max_step
+        maxStep = requestContext.get('maxStep', None)
+        if maxStep and self.max_step and maxStep < self.max_step:
+            self.max_step = maxStep
+        log.debug("-- self.max_step is {}".format(self.max_step))    
         all_names = {}
         for pattern in patterns:
             log.debug("IRONdbFinder.fetch pattern: %s" % pattern)
@@ -576,7 +606,7 @@ class IRONdbFinder(BaseFinder):
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
         fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level)
+                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span)
 
         for name in names:
             if 'leaf' in name and 'leaf_data' in name:
