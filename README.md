@@ -55,6 +55,7 @@ In your graphite's `local_settings.py`:
     IRONDB_MAX_RETRIES = 2
     IRONDB_QUERY_LOG = False
     IRONDB_URLS_ROTATE = True
+    AUTOCOMPRESS_GAPS_IN_DERIVATIVE_FUNCTIONS=True
 
 Where `irondb-host` is the DNS or IP of an IRONdb node, `port`
 (usually 8112) is the listening port for IRONdb, and <account> is some
