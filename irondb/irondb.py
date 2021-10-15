@@ -8,8 +8,6 @@ import os
 import binascii
 import pickle
 import re
-from six import string_types
-
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
