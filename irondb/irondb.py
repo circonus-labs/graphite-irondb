@@ -44,19 +44,25 @@ except ImportError:
 log.info(irondb_flatbuf)
 
 
-def find_minimal_interval(target):
+def find_minimal_interval_in_target(target):
     """
-    Parse target same was as Graphite does, but find minimal interval in seconds
+    Input: target
+    Output: list of intervals or []
+
+    Parse target in the same way as Graphite, but find minimal interval in seconds
     for functions which accept interval: 
-        hitcount,summarize,smartSummarize
-        movingAverage/Min/Max/Median/Sum/Window
-        exponentialMovingAverage
+        hitcount(), summarize(), smartSummarize(),
+        movingAverage/Min/Max/Median/Sum/Window(),
+        exponentialMovingAverage()
     """
     from graphite.render.grammar import grammar as _grammar
     from graphite.render.evaluator import evaluateScalarTokens as _evaluateScalarTokens
     from pyparsing import ParseResults
 
     def flatten2list(object):
+        """
+        Recursively flattening list-like object
+        """
         gather = []
         for item in object:
             if isinstance(item, (list, tuple, set)):
@@ -67,33 +73,27 @@ def find_minimal_interval(target):
 
     def _evaluateTokens(requestContext, tokens, replacements=None, pipedArg=None):
         """
-        simplified version of same function from graphite.render.evaluator
-        except it return list of windowSize in seconds from all functions in tokens
+        Simplified version of evaluateTokens() function from graphite.render.evaluator
+        Parses tokens recursively, extracts 2nd argument for interval functions and
+        convert it into seconds.
         """
-        #log.debug(" -- tokens: {}".format(tokens))
-        if tokens.template:
-            arglist = dict()
-            if tokens.template.kwargs:
-                arglist.update(dict([(kwarg.argname, _evaluateScalarTokens(kwarg.args[0])) for kwarg in tokens.template.kwargs]))
-            if tokens.template.args:
-                arglist.update(dict([(str(i+1), _evaluateScalarTokens(arg)) for i, arg in enumerate(tokens.template.args)]))
-            if 'template' in requestContext:
-                arglist.update(requestContext['template'])
-            return _evaluateTokens(requestContext, tokens.template, arglist)
-
+        # same as in evaluateTokens()
         if tokens.expression:
             if tokens.expression.pipedCalls:
-                # when the expression has piped calls, we pop the right-most call and pass the remaining
-                # expression into it via pipedArg, to get the same result as a nested call
                 rightMost = tokens.expression.pipedCalls.pop()
                 return _evaluateTokens(requestContext, rightMost, replacements, tokens)
             return _evaluateTokens(requestContext, tokens.expression, replacements)
         
+        # we can't fetch data here, ignoring pathExpression
         if tokens.pathExpression:
             return None
 
+        # we have a function
         if tokens.call:
+            # get function name
             func = tokens.call.funcname
+            # process args in same was as in evaluateTokens()
+            # we're keeping args and kwargs here because function is recursive
             rawArgs = tokens.call.args or []
             if pipedArg is not None:
                 rawArgs.insert(0, pipedArg)
@@ -101,26 +101,34 @@ def find_minimal_interval(target):
             requestContext['args'] = rawArgs
             kwargs = dict([(kwarg.argname, _evaluateTokens(requestContext, kwarg.args[0], replacements))
                        for kwarg in tokens.call.kwargs])
-            #log.debug(" -- xtokens {}, func {}, args {}".format(tokens, func, requestContext['args']))
-            if 'moving' in func:
+            # maybe we should switch to regex to detect function name           
+            if 'oving' in func or 'hitcount' in func or 'ummarize' in func:
                 if requestContext['args']:
-                    log.debug(" -- requestContext['args']:{}".format(requestContext['args'].dump()))
+                    log.debug("--- func:'{}'".format(func))
+                    log.debug("--- requestContext['args']:*{}*".format(requestContext['args'].dump()))
+                    # get second argument of function, flattening all lists
                     windowSize = flatten2list(requestContext['args'][1])[0]
+                    # if still list - take first argument
                     if isinstance(windowSize, (ParseResults, list)):
                         windowSize = windowSize[0]
-                    log.debug(" -- xwindowSize {}".format(windowSize))
+                    log.debug("--- windowSize {}".format(windowSize))
                     try:
                         deltaSeconds = int(windowSize)
                     except ValueError:
                         delta = parseTimeOffset(windowSize.strip('\"').strip('\''))
-                        log.debug("-- xdelta is {}".format(delta))
+                        log.debug("--- delta is {}".format(delta))
                         deltaSeconds = abs(delta.seconds + (delta.days * 86400))
-                    log.debug("-- xdeltaSeconds is {}".format(deltaSeconds))
-                    requestContext['maxStep'].append(deltaSeconds)
-        return requestContext['maxStep']
+                    log.debug("--- deltaSeconds is {}".format(deltaSeconds))
+                    # using context for accumulate results
+                    requestContext['_maxStep'].append(deltaSeconds)
+        return requestContext['_maxStep']
 
-    return min(_evaluateTokens({'maxStep':[]}, _grammar.parseString(target)))
-
+    # this code runs before real evaluateTokens(), so, supress errors for now
+    try:
+        result = min(_evaluateTokens({'_maxStep':[]}, _grammar.parseString(target)))
+    except (KeyError,IndexError,ValueError,TypeError):
+        result = []
+    return result
 
 def strip_prefix(path):
     prefix = None
@@ -460,37 +468,27 @@ class IRONdbFinder(BaseFinder):
 
     def fetch(self, patterns, start_time, end_time, now=None, requestContext=None):
         log.debug("IRONdbFinder.fetch called")
-        #log.debug("-- requestContext is {}".format(requestContext))
+        # get list of targets from context
+        # graphite-web should provide this
         targets_serialized = requestContext.get('targets_serialized', None)
         if targets_serialized and not self.max_step:
             targets = pickle.loads(targets_serialized)
-            # TODO: create nice regex
-            m = re.compile(r'moving.*\(.*,([0-9\'"sminhdwoy]+).*\)')
             for t in targets:
                 # performance shortcut
-                if 'moving' not in t:
+                if 'oving' not in t or 'hitcount' not in t or 'ummarize' not in t:
                     next
                 log.debug("-- target is {}".format(t))
                 max_step = 0
-                match = m.search(t)
-                if match:
-                    windowSize = match.group(1).strip('\"').strip('\'')
-                    log.debug("-- windowSize is {}".format(windowSize))
-                    try:
-                        deltaSeconds = int(windowSize)
-                    except ValueError:
-                        delta = parseTimeOffset(windowSize)
-                        log.debug("-- delta is {}".format(delta))
-                        deltaSeconds = abs(delta.seconds + (delta.days * 86400))
-                    log.debug("-- deltaSeconds is {}".format(deltaSeconds))
-                    if max_step < deltaSeconds:
-                        max_step = deltaSeconds
+                interval = find_minimal_interval_in_target(t)
+                log.debug("-- minimal interval from target '{}' is {}".format(t, interval))
+                if max_step < interval:
+                    max_step = interval
             log.debug("-- max_step is {}".format(max_step))
-            if max_step > 0:            
-                rollup_list = [1,2,5,10,15,20,30,60,120,300,600,900,1200,1800,3600,7200,10800,21600,28800,43200,86400]
-                # calculating span
+            if max_step > 0:
+                # calculating span same way as IRONdb
                 # target 480 datapoints in the window and use the rollup that best matches this
-                # 480 comes from max effective resolution 1920px and no more than 1 datapoint per 4 pixels
+                # 480 comes from max effective resolution 1920px and no more than 1 datapoint per 4 pixels         
+                rollup_list = [1,2,5,10,15,20,30,60,120,300,600,900,1200,1800,3600,7200,10800,21600,28800,43200,86400]
                 target_datapoints = (end_time - start_time) / 480
                 if target_datapoints < self.min_rollup_span or not self.database_rollups:
                     target_datapoints = self.min_rollup_span
@@ -502,12 +500,12 @@ class IRONdbFinder(BaseFinder):
                 log.debug("-- span is {}".format(span))
                 if max_step < span:
                     self.max_step = max_step
+                log.debug("-- using max_step = {}".format(max_step))
+        # getting maxStep parameter from context        
         maxStep = requestContext.get('maxStep', None)
+        # picking minimal value from context maxStep and calculated max_step
         if maxStep and self.max_step and maxStep < self.max_step:
             self.max_step = maxStep
-        log.debug("-- self.max_step is {}".format(self.max_step))
-        tmp_step = find_minimal_interval(t)
-        log.debug("-- tmp_step is {}".format(tmp_step))
         all_names = {}
         for pattern in patterns:
             log.debug("IRONdbFinder.fetch pattern: %s" % pattern)
