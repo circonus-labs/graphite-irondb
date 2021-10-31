@@ -7,7 +7,6 @@ import json
 import os
 import binascii
 import pickle
-import re
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
@@ -21,7 +20,6 @@ import requests
 import socket
 from django.conf import settings
 
-from graphite.render.attime import parseTimeOffset
 from graphite.intervals import Interval, IntervalSet
 from graphite.node import LeafNode, BranchNode
 from graphite.logger import log
@@ -57,6 +55,7 @@ def find_minimal_interval_in_target(target):
     """
     from graphite.render.grammar import grammar as _grammar
     from graphite.render.evaluator import evaluateScalarTokens as _evaluateScalarTokens
+    from graphite.render.attime import parseTimeOffset
     from pyparsing import ParseResults
 
     def flatten2list(object):
@@ -347,7 +346,7 @@ class IRONdbMeasurementFetcher(object):
                                 send_headers['X-Mtev-Trace-Event'] = '2'
                         if self.max_step:
                             params['step'] = self.max_step      
-                        log.debug("-- params is {}".format(params))        
+                        log.debug("- params is {}".format(params))        
                         d = requests.post(urls.series_multi, json = params, headers = send_headers,
                                           timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)))
                         d.raise_for_status()
