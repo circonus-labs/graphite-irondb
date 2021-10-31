@@ -54,12 +54,23 @@ def find_minimal_interval(target):
     """
     from graphite.render.grammar import grammar as _grammar
     from graphite.render.evaluator import evaluateScalarTokens as _evaluateScalarTokens
+    from pyparsing import ParseResults
+
+    def flatten2list(object):
+        gather = []
+        for item in object:
+            if isinstance(item, (list, tuple, set)):
+                gather.extend(flatten2list(item))            
+            else:
+                gather.append(item)
+        return gather
+
     def _evaluateTokens(requestContext, tokens, replacements=None, pipedArg=None):
         """
         simplified version of same function from graphite.render.evaluator
+        except it return list of windowSize in seconds from all functions in tokens
         """
-        max_step = -1
-        log.debug(" -- tokens: {}".format(tokens))
+        #log.debug(" -- tokens: {}".format(tokens))
         if tokens.template:
             arglist = dict()
             if tokens.template.kwargs:
@@ -90,24 +101,25 @@ def find_minimal_interval(target):
             requestContext['args'] = rawArgs
             kwargs = dict([(kwarg.argname, _evaluateTokens(requestContext, kwarg.args[0], replacements))
                        for kwarg in tokens.call.kwargs])
-            log.debug(" -- func {} args {}".format(func, args))
+            #log.debug(" -- xtokens {}, func {}, args {}".format(tokens, func, requestContext['args']))
             if 'moving' in func:
-                if len(args)>1:
-                    if len(args[1]):
-                        windowSize = args[1][0].strip('\"').strip('\'')
-                        try:
-                            deltaSeconds = int(windowSize)
-                        except ValueError:
-                            delta = parseTimeOffset(windowSize)
-                            log.debug("-- delta is {}".format(delta))
-                            deltaSeconds = abs(delta.seconds + (delta.days * 86400))
-                        log.debug("-- deltaSeconds is {}".format(deltaSeconds))
-                        if max_step < deltaSeconds:
-                            max_step = deltaSeconds
+                if requestContext['args']:
+                    log.debug(" -- requestContext['args']:{}".format(requestContext['args'].dump()))
+                    windowSize = flatten2list(requestContext['args'][1])[0]
+                    if isinstance(windowSize, (ParseResults, list)):
+                        windowSize = windowSize[0]
+                    log.debug(" -- xwindowSize {}".format(windowSize))
+                    try:
+                        deltaSeconds = int(windowSize)
+                    except ValueError:
+                        delta = parseTimeOffset(windowSize.strip('\"').strip('\''))
+                        log.debug("-- xdelta is {}".format(delta))
+                        deltaSeconds = abs(delta.seconds + (delta.days * 86400))
+                    log.debug("-- xdeltaSeconds is {}".format(deltaSeconds))
+                    requestContext['maxStep'].append(deltaSeconds)
+        return requestContext['maxStep']
 
-        return max_step
-
-    return _evaluateTokens({}, _grammar.parseString(target))
+    return min(_evaluateTokens({'maxStep':[]}, _grammar.parseString(target)))
 
 
 def strip_prefix(path):
