@@ -251,7 +251,11 @@ class IRONdbLocalSettings(object):
         try:
             self.min_rollup_span = getattr(settings, 'IRONDB_MIN_ROLLUP_SPAN')
         except AttributeError:
-            self.min_rollup_span = 60  # secondds     
+            self.min_rollup_span = 60  # seconds
+        try:
+            self.calculate_step_from_target = getattr(settings, 'IRONDB_CALCULATE_STEP_FROM_TARGET')
+        except AttributeError:
+            self.calculate_step_from_target = False            
         try:
             mr = getattr(settings, 'IRONDB_MAX_RETRIES')
             if mr:
@@ -442,6 +446,7 @@ class IRONdbFinder(BaseFinder):
             self.max_retries = urls.host_count
             self.max_step = None
             self.min_rollup_span = 60
+            self.calculate_step_from_target = False
         else:
             IRONdbLocalSettings.load(self)
 
@@ -467,44 +472,47 @@ class IRONdbFinder(BaseFinder):
 
     def fetch(self, patterns, start_time, end_time, now=None, requestContext=None):
         log.debug("IRONdbFinder.fetch called")
-        # get list of targets from context
-        # graphite-web should provide this
-        targets_serialized = requestContext.get('targets_serialized', None)
-        if targets_serialized and not self.max_step:
-            targets = pickle.loads(targets_serialized)
-            for t in targets:
-                # performance shortcut
-                if 'oving' not in t or 'hitcount' not in t or 'ummarize' not in t:
-                    next
-                log.debug("-- target is {}".format(t))
-                max_step = 0
-                interval = find_minimal_interval_in_target(t)
-                log.debug("-- minimal interval from target '{}' is {}".format(t, interval))
-                if max_step < interval:
-                    max_step = interval
-            log.debug("-- max_step is {}".format(max_step))
-            if max_step > 0:
-                # calculating span same way as IRONdb
-                # target 480 datapoints in the window and use the rollup that best matches this
-                # 480 comes from max effective resolution 1920px and no more than 1 datapoint per 4 pixels         
-                rollup_list = [1,2,5,10,15,20,30,60,120,300,600,900,1200,1800,3600,7200,10800,21600,28800,43200,86400]
-                target_datapoints = (end_time - start_time) / 480
-                if target_datapoints < self.min_rollup_span or not self.database_rollups:
-                    target_datapoints = self.min_rollup_span
-                span = rollup_list[-1]    
-                for r in rollup_list:
-                    if r >= target_datapoints:
-                        span = r
-                        break
-                log.debug("-- span is {}".format(span))
-                if max_step < span:
-                    self.max_step = max_step
-                log.debug("-- using max_step = {}".format(max_step))
-        # getting maxStep parameter from context        
+        # getting maxStep parameter from context, if provided      
         maxStep = requestContext.get('maxStep', None)
-        # picking minimal value from context maxStep and calculated max_step
-        if maxStep and self.max_step and maxStep < self.max_step:
-            self.max_step = maxStep
+        if maxStep:
+            log.debug("-- setting self.max_step = {} from context".format(max_step))
+            self.max_step = int(maxStep)
+        elif self.calculate_step_from_target:
+            # get list of targets from context
+            # graphite-web should provide this
+            targets_serialized = requestContext.get('targets_serialized', None)
+            if targets_serialized and not self.max_step:
+                targets = pickle.loads(targets_serialized)
+                max_step = -1
+                for t in targets:
+                    # performance shortcut
+                    if 'oving' not in t or 'hitcount' not in t or 'ummarize' not in t:
+                        next
+                    log.debug("-- target is {}".format(t))
+                    interval = find_minimal_interval_in_target(t)
+                    log.debug("-- minimal interval from target '{}' is {}".format(t, interval))
+                    if max_step < 0:
+                        max_step = interval
+                    if max_step < interval:
+                        max_step = interval
+                log.debug("-- max_step is {}".format(max_step))
+                if max_step > 0:
+                    # calculating span same way as IRONdb
+                    # target 480 datapoints in the window and use the rollup that best matches this
+                    # 480 comes from max effective resolution 1920px and no more than 1 datapoint per 4 pixels         
+                    rollup_list = [1,2,5,10,15,20,30,60,120,300,600,900,1200,1800,3600,7200,10800,21600,28800,43200,86400]
+                    target_datapoints = (end_time - start_time) / 480
+                    if target_datapoints < self.min_rollup_span or not self.database_rollups:
+                        target_datapoints = self.min_rollup_span
+                    span = rollup_list[-1]    
+                    for r in rollup_list:
+                        if r >= target_datapoints:
+                            span = r
+                            break
+                    log.debug("-- span is {}".format(span))
+                    if max_step < span:
+                        self.max_step = max_step
+                    log.debug("-- setting self.max_step = {} from targets".format(max_step))
         all_names = {}
         for pattern in patterns:
             log.debug("IRONdbFinder.fetch pattern: %s" % pattern)
