@@ -47,11 +47,12 @@ def find_minimal_interval_in_target(target):
     Input: target
     Output: list of intervals or []
 
-    Parse target in the same way as Graphite, but find minimal interval in seconds
-    for functions which accept interval: 
+    Parse target in the same way as Graphite, but find all interval parameters for functions 
+    which accept interval: 
         hitcount(), summarize(), smartSummarize(),
         movingAverage/Min/Max/Median/Sum/Window(),
         exponentialMovingAverage()
+    and return list with all of them.
     """
     from graphite.render.grammar import grammar as _grammar
     from graphite.render.evaluator import evaluateScalarTokens as _evaluateScalarTokens
