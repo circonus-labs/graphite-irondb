@@ -126,7 +126,7 @@ def find_minimal_interval_in_target(target):
     try:
         result = min(_evaluateTokens({'_maxStep':[]}, _grammar.parseString(target)))
     except (KeyError,IndexError,ValueError,TypeError):
-        result = []
+        result = None
     return result
 
 def strip_prefix(path):
@@ -490,10 +490,11 @@ class IRONdbFinder(BaseFinder):
                     log.debug("-- target is {}".format(t))
                     interval = find_minimal_interval_in_target(t)
                     log.debug("-- minimal interval from target '{}' is {}".format(t, interval))
-                    if max_step < 0:
-                        max_step = interval
-                    if max_step < interval:
-                        max_step = interval
+                    if interval is not None:
+                        if max_step < 0:
+                            max_step = interval
+                        if max_step < interval:
+                            max_step = interval
                 log.debug("-- max_step is {}".format(max_step))
                 if max_step > 0:
                     # calculating span same way as IRONdb
