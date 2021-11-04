@@ -55,7 +55,6 @@ def find_minimal_interval_in_target(target):
     and return list with all of them.
     """
     from graphite.render.grammar import grammar as _grammar
-    from graphite.render.evaluator import evaluateScalarTokens as _evaluateScalarTokens
     from graphite.render.attime import parseTimeOffset
     from pyparsing import ParseResults
 
