@@ -6,7 +6,7 @@ import copy
 import json
 import os
 import binascii
-import pickle
+
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
@@ -476,14 +476,13 @@ class IRONdbFinder(BaseFinder):
         # getting maxStep parameter from context, if provided      
         maxStep = requestContext.get('maxStep', None)
         if maxStep:
-            log.debug("-- setting self.max_step = {} from context".format(max_step))
+            log.debug("-- setting self.max_step = {} from context".format(maxStep))
             self.max_step = int(maxStep)
         elif self.calculate_step_from_target:
             # get list of targets from context
             # graphite-web should provide this
-            targets_serialized = requestContext.get('targets_serialized', None)
-            if targets_serialized and not self.max_step:
-                targets = pickle.loads(targets_serialized)
+            targets = requestContext.get('targets', None)
+            if targets and not self.max_step:
                 max_step = -1
                 for t in targets:
                     # performance shortcut

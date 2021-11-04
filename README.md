@@ -97,13 +97,20 @@ with wildcard expansions in the datapoints.
 
 `IRONDB_USE_DATABASE_ROLLUPS` is an optional Python boolean (True|False)
 and will default to True. IRONdb can automatically choose the "step"
-of the returned data if this param is set to True.  Calculation for
+of the returned data if this param is set to True.  The calculation for
 "step" is based on the time span of the query.  If you set this to
 False, IRONdb will return the minimum rollup span it is configured to
 return for all data.  This can result in slower renders as much more
 data will be returned than may be necessary for rendering.  However,
-some graphite functions (like summarize) require finer resolution data
-in order to group data properly.
+some graphite functions (like `summarize()`) require finer resolution data
+to group data properly (but now you can use `IRONDB_CALCULATE_STEP_FROM_TARGET`)
+ to fix that problem (see next section).
+
+`IRONDB_CALCULATE_STEP_FROM_TARGET` is an optional Python boolean (True|False)
+and will default to False. If enabled and if `IRONDB_USE_DATABASE_ROLLUPS=True` 
+the step will be calculated by parsing the target function, extracting `windowSize` and 
+`intervalString` parameter from functions and picking minimal value, i.e. in that 
+case you will get the proper result of aggregating functions even if database rollups are enabled.
 
 `IRONDB_MIN_ROLLUP_SPAN` minimal rollup span for irondb data. Used in step calculation, default is 60.
 
