@@ -6,6 +6,7 @@ import copy
 import json
 import os
 import binascii
+
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
@@ -40,6 +41,93 @@ except ImportError:
     log.info("IRONdb Using pure Python Flatbuffer module")
 log.info(irondb_flatbuf)
 
+
+def find_minimal_interval_in_target(target):
+    """
+    Input: target
+    Output: list of intervals or []
+
+    Parse target in the same way as Graphite, but find all interval parameters for functions 
+    which accept interval: 
+        hitcount(), summarize(), smartSummarize(),
+        movingAverage/Min/Max/Median/Sum/Window(),
+        exponentialMovingAverage()
+    and return list with all of them.
+    """
+    from graphite.render.grammar import grammar as _grammar
+    from graphite.render.attime import parseTimeOffset
+    from pyparsing import ParseResults
+
+    def flatten2list(object):
+        """
+        Recursively flattening list-like object
+        """
+        gather = []
+        for item in object:
+            if isinstance(item, (list, tuple, set)):
+                gather.extend(flatten2list(item))            
+            else:
+                gather.append(item)
+        return gather
+
+    def _evaluateTokens(requestContext, tokens, replacements=None, pipedArg=None):
+        """
+        Simplified version of evaluateTokens() function from graphite.render.evaluator
+        Parses tokens recursively, extracts 2nd argument for interval functions and
+        convert it into seconds.
+        """
+        # same as in evaluateTokens()
+        if tokens.expression:
+            if tokens.expression.pipedCalls:
+                rightMost = tokens.expression.pipedCalls.pop()
+                return _evaluateTokens(requestContext, rightMost, replacements, tokens)
+            return _evaluateTokens(requestContext, tokens.expression, replacements)
+        
+        # we can't fetch data here, ignoring pathExpression
+        if tokens.pathExpression:
+            return None
+
+        # we have a function
+        if tokens.call:
+            # get function name
+            func = tokens.call.funcname
+            # process args in same was as in evaluateTokens()
+            # we're keeping args and kwargs here because function is recursive
+            rawArgs = tokens.call.args or []
+            if pipedArg is not None:
+                rawArgs.insert(0, pipedArg)
+            args = [_evaluateTokens(requestContext, arg, replacements) for arg in rawArgs]
+            requestContext['args'] = rawArgs
+            kwargs = dict([(kwarg.argname, _evaluateTokens(requestContext, kwarg.args[0], replacements))
+                       for kwarg in tokens.call.kwargs])
+            # maybe we should switch to regex to detect function name           
+            if 'oving' in func or 'hitcount' in func or 'ummarize' in func:
+                if requestContext['args']:
+                    log.debug("--- func:'{}'".format(func))
+                    log.debug("--- requestContext['args']:*{}*".format(requestContext['args'].dump()))
+                    # get second argument of function, flattening all lists
+                    windowSize = flatten2list(requestContext['args'][1])[0]
+                    # if still list - take first argument
+                    if isinstance(windowSize, (ParseResults, list)):
+                        windowSize = windowSize[0]
+                    log.debug("--- windowSize {}".format(windowSize))
+                    try:
+                        deltaSeconds = int(windowSize)
+                    except ValueError:
+                        delta = parseTimeOffset(windowSize.strip('\"').strip('\''))
+                        log.debug("--- delta is {}".format(delta))
+                        deltaSeconds = abs(delta.seconds + (delta.days * 86400))
+                    log.debug("--- deltaSeconds is {}".format(deltaSeconds))
+                    # using context for accumulate results
+                    requestContext['_maxStep'].append(deltaSeconds)
+        return requestContext['_maxStep']
+
+    # this code runs before real evaluateTokens(), so, supress errors for now
+    try:
+        result = min(_evaluateTokens({'_maxStep':[]}, _grammar.parseString(target)))
+    except (KeyError,IndexError,ValueError,TypeError):
+        result = None
+    return result
 
 def strip_prefix(path):
     prefix = None
@@ -161,6 +249,14 @@ class IRONdbLocalSettings(object):
         except AttributeError:
             self.rollup_window = (60 * 60 * 24 * 7 * 4) # one month
         try:
+            self.min_rollup_span = getattr(settings, 'IRONDB_MIN_ROLLUP_SPAN')
+        except AttributeError:
+            self.min_rollup_span = 60  # seconds
+        try:
+            self.calculate_step_from_target = getattr(settings, 'IRONDB_CALCULATE_STEP_FROM_TARGET')
+        except AttributeError:
+            self.calculate_step_from_target = False            
+        try:
             mr = getattr(settings, 'IRONDB_MAX_RETRIES')
             if mr:
                 self.max_retries = int(mr)
@@ -191,13 +287,14 @@ class IRONdbLocalSettings(object):
                 self.zipkin_event_trace_level = 0
         except AttributeError:
             self.zipkin_event_trace_level = 0
+        self.max_step = None
 
 
 class IRONdbMeasurementFetcher(object):
     __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'rollup_window', 'timeout', 'connection_timeout', 'retries',
-                 'zipkin_enabled', 'zipkin_event_trace_level')
+                 'zipkin_enabled', 'zipkin_event_trace_level', 'max_step', 'min_rollup_span')
 
-    def __init__(self, headers, timeout, connection_timeout, db_rollups, rollup_window, retries, zipkin_enabled, zipkin_event_trace_level):
+    def __init__(self, headers, timeout, connection_timeout, db_rollups, rollup_window, retries, zipkin_enabled, zipkin_event_trace_level, max_step, min_rollup_span):
         self.leaves = list()
         self.lock = threading.Lock()
         self.fetched = False
@@ -207,14 +304,17 @@ class IRONdbMeasurementFetcher(object):
         self.connection_timeout = connection_timeout
         self.database_rollups = db_rollups
         self.rollup_window = rollup_window
+        self.min_rollup_span = min_rollup_span
         self.retries = retries
         self.zipkin_enabled = zipkin_enabled
         self.zipkin_event_trace_level = zipkin_event_trace_level
+        self.max_step = max_step
         if headers:
             self.headers = headers
 
     def add_leaf(self, leaf_name, leaf_data):
         self.leaves.append({'leaf_name': leaf_name, 'leaf_data': leaf_data})
+
 
     def fetch(self, query_log, start_time, end_time):
         if (len(self.leaves) == 0):
@@ -248,6 +348,9 @@ class IRONdbMeasurementFetcher(object):
                                 send_headers['X-Mtev-Trace-Event'] = '1'
                             elif self.zipkin_event_trace_level == 2:
                                 send_headers['X-Mtev-Trace-Event'] = '2'
+                        if self.max_step:
+                            params['step'] = self.max_step      
+                        log.debug("- params is {}".format(params))        
                         d = requests.post(urls.series_multi, json = params, headers = send_headers,
                                           timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)))
                         d.raise_for_status()
@@ -319,7 +422,7 @@ class IRONdbFinder(BaseFinder):
     __slots__ = ('disabled', 'batch_size', 'database_rollups', 'timeout',
                  'connection_timeout', 'headers', 'disabled', 'max_retries',
                  'query_log_enabled', 'zipkin_enabled',
-                 'zipkin_event_trace_level')
+                 'zipkin_event_trace_level', 'max_step', 'min_rollup_span')
 
     def __init__(self, config=None):
         global urls
@@ -341,6 +444,9 @@ class IRONdbFinder(BaseFinder):
                 self.batch_size = config['irondb']['batch_size']
             urls = URLs(urls)
             self.max_retries = urls.host_count
+            self.max_step = None
+            self.min_rollup_span = 60
+            self.calculate_step_from_target = False
         else:
             IRONdbLocalSettings.load(self)
 
@@ -356,7 +462,7 @@ class IRONdbFinder(BaseFinder):
 
     def newfetcher(self, fset, headers):
         fetcher = IRONdbMeasurementFetcher(headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level)
+                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span)
         fset.append(fetcher)
         return fetcher
 
@@ -366,6 +472,47 @@ class IRONdbFinder(BaseFinder):
 
     def fetch(self, patterns, start_time, end_time, now=None, requestContext=None):
         log.debug("IRONdbFinder.fetch called")
+        # getting maxStep parameter from context, if provided      
+        maxStep = requestContext.get('maxStep', None)
+        if maxStep:
+            log.debug("-- setting self.max_step = {} from context".format(maxStep))
+            self.max_step = int(maxStep)
+        elif self.calculate_step_from_target:
+            # get list of targets from context
+            # graphite-web should provide this
+            targets = requestContext.get('targets', None)
+            if targets and not self.max_step:
+                max_step = -1
+                for t in targets:
+                    # performance shortcut
+                    if 'oving' not in t or 'hitcount' not in t or 'ummarize' not in t:
+                        next
+                    log.debug("-- target is {}".format(t))
+                    interval = find_minimal_interval_in_target(t)
+                    log.debug("-- minimal interval from target '{}' is {}".format(t, interval))
+                    if interval is not None:
+                        if max_step < 0:
+                            max_step = interval
+                        if max_step < interval:
+                            max_step = interval
+                log.debug("-- max_step is {}".format(max_step))
+                if max_step > 0:
+                    # calculating span same way as IRONdb
+                    # target 480 datapoints in the window and use the rollup that best matches this
+                    # 480 comes from max effective resolution 1920px and no more than 1 datapoint per 4 pixels         
+                    rollup_list = [1,2,5,10,15,20,30,60,120,300,600,900,1200,1800,3600,7200,10800,21600,28800,43200,86400]
+                    target_datapoints = (end_time - start_time) / 480
+                    if target_datapoints < self.min_rollup_span or not self.database_rollups:
+                        target_datapoints = self.min_rollup_span
+                    span = rollup_list[-1]    
+                    for r in rollup_list:
+                        if r >= target_datapoints:
+                            span = r
+                            break
+                    log.debug("-- span is {}".format(span))
+                    if max_step < span:
+                        self.max_step = max_step
+                    log.debug("-- setting self.max_step = {} from targets".format(max_step))
         all_names = {}
         for pattern in patterns:
             log.debug("IRONdbFinder.fetch pattern: %s" % pattern)
@@ -545,7 +692,7 @@ class IRONdbFinder(BaseFinder):
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
         fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level)
+                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span)
 
         for name in names:
             if 'leaf' in name and 'leaf_data' in name:
