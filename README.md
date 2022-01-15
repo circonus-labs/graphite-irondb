@@ -115,6 +115,11 @@ case you will get the proper result of aggregating functions even if database ro
 
 `IRONDB_MIN_ROLLUP_SPAN` minimal rollup span for irondb data. Used in step calculation, default is 60.
 
+`IRONDB_GRAPHITE_ADJUST_STEP_URL` - url to `graphite_adjust_step.json` file. If present - metrics will be grouped during retrieve phase by step parameter, so, IronDB would return preper results. If empty or not retrieavable
+then grouping functionality will be disabled.
+
+`IRONDB_GRAPHITE_ADJUST_STEP_URL_TTL` - number of seconds to cache content of retrieved `graphite_adjust_step.json` file. Default is 900 (15 munutes). If refresh attempt is unsuccessful it will disable grouping functionality until next successful retrieve attepmpt.
+
 `IRONDB_USE_ACTIVITY_TRACKING` is an optional Python boolean (True|False)
 and will default to True. IRONdb supports tracking of metric activity without
 the expense of reading all known time series data to find active ranges.
