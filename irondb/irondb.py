@@ -282,7 +282,7 @@ class IRONdbLocalSettings(object):
             self.min_rollup_span = 60  # seconds
         try:
             self.gas_url = getattr(settings, 'IRONDB_GRAPHITE_ADJUST_STEP_URL')
-            self.gas = retrieve_gas(gas_url, self.connection_timeout, self.timeout)
+            self.gas = retrieve_gas(self.gas_url, self.connection_timeout, self.timeout)
         except AttributeError:
             self.gas_url = ''
             self.gas = OrderedDict()  # empty dict
