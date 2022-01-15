@@ -45,6 +45,30 @@ except ImportError:
     log.info("IRONdb Using pure Python Flatbuffer module")
 log.info(irondb_flatbuf)
 
+def retrieve_gas(url, connection_timeout, timeout):
+    """
+    Input:  url string
+            connection_timeout, timeout - float ms
+    Output: parsed result or OrderedDict()
+
+    Retrieves graphite_adjust_step.json file
+    and returns it in parsed form as ordered dict,
+    or return empty dict if broken or non-retrievable
+    """
+    gas = OrderedDict()
+    try:
+        # retrieve graphite_adjust_step.json file
+        r = requests.get(url, params={}, headers={},
+                timeout=((connection_timeout / 1000.0), (timeout / 1000.0)))
+        r.raise_for_status()
+        if r.headers['content-type'] == 'application/json':
+            for line in r.json():
+                rx = re.compile(line['re'])
+                gas[rx] = line['step']
+    # TODO: proper error processing
+    except Exception as ex:
+        pass
+    return gas
 
 def find_minimal_interval_in_target(target):
     """
@@ -256,30 +280,16 @@ class IRONdbLocalSettings(object):
             self.min_rollup_span = getattr(settings, 'IRONDB_MIN_ROLLUP_SPAN')
         except AttributeError:
             self.min_rollup_span = 60  # seconds
-        self.gas_enabled = True
-        self.gas = OrderedDict()
         try:
-            gas_url = getattr(settings, 'IRONDB_GRAPHITE_ADJUST_STEP_URL')
+            self.gas_url = getattr(settings, 'IRONDB_GRAPHITE_ADJUST_STEP_URL')
+            self.gas = retrieve_gas(gas_url, self.connection_timeout, self.timeout)
         except AttributeError:
-            self.gas_enabled = False
-        if self.gas_enabled:
-            # retrieve graphite_adjust_step.json file
-            try:
-                r = requests.get(gas_url, params={}, headers={},
-                        timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)))
-                r.raise_for_status()
-                if r.headers['content-type'] == 'application/json':
-                    for line in r.json():
-                        step = line['step']
-                        self.gas[step] = re.compile(line['re'])
-            except Exception as ex:
-                self.gas_enabled = False
-        self.gas_next_update = time.time()
+            self.gas_url = ''
+            self.gas = OrderedDict()  # empty dict
         try:
-            gas_ttl = getattr(settings, 'IRONDB_GRAPHITE_ADJUST_STEP_URL_TTL')
-            self.gas_next_update = self.gas_next_update + gas_ttl
+            self.gas_ttl = getattr(settings, 'IRONDB_GRAPHITE_ADJUST_STEP_URL_TTL')
         except AttributeError:
-            self.gas_next_update = self.gas_next_update + 900  # seconds         
+            self.gas_ttl = 900  # seconds         
         try:
             self.calculate_step_from_target = getattr(settings, 'IRONDB_CALCULATE_STEP_FROM_TARGET')
         except AttributeError:
@@ -320,10 +330,11 @@ class IRONdbLocalSettings(object):
 
 class IRONdbMeasurementFetcher(object):
     __slots__ = ('leaves','lock', 'fetched', 'results', 'headers', 'database_rollups', 'rollup_window', 'timeout', 'connection_timeout', 'retries',
-                 'zipkin_enabled', 'zipkin_event_trace_level', 'max_step', 'min_rollup_span', 'gas_enabled', 'gas', 'gas_next_update')
+                 'zipkin_enabled', 'zipkin_event_trace_level', 'max_step', 'min_rollup_span', 'gas', 'gas_url', 'gas_ttl')
 
     def __init__(self, headers, timeout, connection_timeout, db_rollups, rollup_window, retries, zipkin_enabled, 
-                zipkin_event_trace_level, max_step, min_rollup_span, gas_enabled, gas, gas_next_update):
+                zipkin_event_trace_level, max_step, min_rollup_span, gas, gas_url, gas_ttl):
+        global gas_next_update
         self.leaves = list()
         self.lock = threading.Lock()
         self.fetched = False
@@ -340,9 +351,12 @@ class IRONdbMeasurementFetcher(object):
         self.max_step = max_step
         if headers:
             self.headers = headers
-        self.gas_enabled = gas_enabled
         self.gas = gas
-        self.gas_next_update = gas_next_update
+        self.gas_url = gas_url
+        self.gas_ttl = gas_ttl
+        if gas_url and gas_next_update <= time.time():
+            self.gas = retrieve_gas(gas_url, connection_timeout, timeout)
+            gas_next_update = time.time() + gas_ttl
 
     def add_leaf(self, leaf_name, leaf_data):
         self.leaves.append({'leaf_name': leaf_name, 'leaf_data': leaf_data})
@@ -455,10 +469,11 @@ class IRONdbFinder(BaseFinder):
                  'connection_timeout', 'headers', 'disabled', 'max_retries',
                  'query_log_enabled', 'zipkin_enabled',
                  'zipkin_event_trace_level', 'max_step', 'min_rollup_span',
-                 'gas_enabled','gas','gas_next_update')
+                 'gas','gas_ttl')
 
     def __init__(self, config=None):
         global urls
+        global gas_next_update
         if config is not None:
             self.batch_size = 250
             self.database_rollups = True
@@ -482,9 +497,10 @@ class IRONdbFinder(BaseFinder):
             self.calculate_step_from_target = False
             self.gas_enabled = False
             self.gas = OrderedDict()
-            self.gas_next_update = time.time() + 900
+            self.gas_ttl = 900
         else:
             IRONdbLocalSettings.load(self)
+        gas_next_update = time.time() + self.gas_ttl
 
     def query_log(self, node, start, elapsed, result_count, query, query_type, data_format, data_start, data_end):
         if self.query_log_enabled == False:
@@ -498,8 +514,7 @@ class IRONdbFinder(BaseFinder):
 
     def newfetcher(self, fset, headers):
         fetcher = IRONdbMeasurementFetcher(headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span,
-                                           self.gas_enabled, self.gas, self.gas_next_update)
+                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span, self.gas)
         fset.append(fetcher)
         return fetcher
 
@@ -729,8 +744,7 @@ class IRONdbFinder(BaseFinder):
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
         fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span,
-                                           self.gas_enabled, self.gas, self.gas_next_update)
+                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span, self.gas)
 
         for name in names:
             if 'leaf' in name and 'leaf_data' in name:
