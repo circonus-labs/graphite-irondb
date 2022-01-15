@@ -370,6 +370,7 @@ class IRONdbMeasurementFetcher(object):
             self.lock.acquire()
             # recheck in case we were waiting
             if (self.fetched == False):
+                log.debug("- gas is {}".format(self.gas))
                 params = {}
                 params['names'] = self.leaves
                 params['start'] = start_time
@@ -469,7 +470,7 @@ class IRONdbFinder(BaseFinder):
                  'connection_timeout', 'headers', 'disabled', 'max_retries',
                  'query_log_enabled', 'zipkin_enabled',
                  'zipkin_event_trace_level', 'max_step', 'min_rollup_span',
-                 'gas','gas_ttl')
+                 'gas','gas_url','gas_ttl')
 
     def __init__(self, config=None):
         global urls
@@ -495,8 +496,8 @@ class IRONdbFinder(BaseFinder):
             self.max_step = None
             self.min_rollup_span = 60
             self.calculate_step_from_target = False
-            self.gas_enabled = False
             self.gas = OrderedDict()
+            self.gas_url = ''
             self.gas_ttl = 900
         else:
             IRONdbLocalSettings.load(self)
@@ -514,7 +515,7 @@ class IRONdbFinder(BaseFinder):
 
     def newfetcher(self, fset, headers):
         fetcher = IRONdbMeasurementFetcher(headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span, self.gas)
+                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span, self.gas, self.gas_url, self.gas_ttl)
         fset.append(fetcher)
         return fetcher
 
@@ -744,7 +745,7 @@ class IRONdbFinder(BaseFinder):
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
         fetcher = IRONdbMeasurementFetcher(measurement_headers, self.timeout, self.connection_timeout, self.database_rollups, self.rollup_window, self.max_retries,
-                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span, self.gas)
+                                           self.zipkin_enabled, self.zipkin_event_trace_level, self.max_step, self.min_rollup_span, self.gas, self.gas_url, self.gas_ttl)
 
         for name in names:
             if 'leaf' in name and 'leaf_data' in name:
