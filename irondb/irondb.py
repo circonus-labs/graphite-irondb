@@ -334,7 +334,6 @@ class IRONdbMeasurementFetcher(object):
 
     def __init__(self, headers, timeout, connection_timeout, db_rollups, rollup_window, retries, zipkin_enabled, 
                 zipkin_event_trace_level, max_step, min_rollup_span, gas, gas_url, gas_ttl):
-        global gas_next_update
         self.leaves = list()
         self.lock = threading.Lock()
         self.fetched = False
@@ -354,20 +353,22 @@ class IRONdbMeasurementFetcher(object):
         self.gas = gas
         self.gas_url = gas_url
         self.gas_ttl = gas_ttl
-        if gas_url and gas_next_update <= time.time():
-            self.gas = retrieve_gas(gas_url, connection_timeout, timeout)
-            gas_next_update = time.time() + gas_ttl
 
     def add_leaf(self, leaf_name, leaf_data):
         self.leaves.append({'leaf_name': leaf_name, 'leaf_data': leaf_data})
 
 
     def fetch(self, query_log, start_time, end_time):
+        global gas_next_update
         if (len(self.leaves) == 0):
             # nothing to fetch, we're done
             return
         if (self.fetched == False):
             self.lock.acquire()
+            # update graphite_adjust_step.json if defined
+            if self.gas_url and gas_next_update <= time.time():
+                self.gas = retrieve_gas(self.gas_url, self.connection_timeout, self.timeout)
+                gas_next_update = time.time() + gas_ttl
             # recheck in case we were waiting
             if (self.fetched == False):
                 log.debug("- gas is {}".format(self.gas))
