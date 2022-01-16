@@ -369,11 +369,12 @@ class IRONdbMeasurementFetcher(object):
                 gas_next_update = int(time.time()) + self.gas_ttl
             # recheck in case we were waiting
             if (self.fetched == False):
-                log.debug("- gas is {}".format(str(self.gas)))
+                log.debug(" - gas is {}".format(str(self.gas)))
                 # special dict for storing steps together with leaves
                 gas_steps = {}
-                # if we have gas and it's defined
+                # if we have gas populated and url defined
                 if self.gas_url and self.gas:
+                    # loop over leaves and group them in gas_steps dict
                     for leaf in self.leaves:
                         step = None
                         for rex in self.gas:
@@ -391,12 +392,10 @@ class IRONdbMeasurementFetcher(object):
                             gas_steps[step] = []
                             gas_steps[step].append(leaf)
                 else:
-                    # just put all leaves in single batch for retrieve
-                    # if we have step - put all leaves there
-                    # otherwise let's use special step None for that purpose
+                    # just put all leaves in single batch for retrieval
                     gas_steps[self.max_step] = self.leaves
-                log.debug("- gas_steps is {}".format(gas_steps)) 
-                # loop over steps dict
+                log.debug(" - gas_steps is {}".format(gas_steps)) 
+                # loop over gas_steps dict
                 params = {}
                 for step in gas_steps:
                     leaves = gas_steps[step]
@@ -424,29 +423,27 @@ class IRONdbMeasurementFetcher(object):
                                     send_headers['X-Mtev-Trace-Event'] = '1'
                                 elif self.zipkin_event_trace_level == 2:
                                     send_headers['X-Mtev-Trace-Event'] = '2'     
-                            log.debug("- params is {}".format(params))        
+                            log.debug(" - params is {}".format(params))        
                             d = requests.post(urls.series_multi, json = params, headers = send_headers,
                                             timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)))
                             d.raise_for_status()
                             if 'content-type' in d.headers and d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
                                 results = irondb_flatbuf.metric_get_results(d.content)
-                                #self.fetched = True
                                 data_type = "flatbuffer"
                             else:
                                 results = d.json()
-                                #self.fetched = True
                                 data_type = "json"
                             result_count = len(results["series"]) if results else -1
                             query_type = "rollup data" if params["database_rollups"] else "raw data"
                             query_log.query_log(node, query_start, d.elapsed, result_count, json.dumps(params), query_type, data_type, start_time, end_time)
-                            #log.debug("- before results is {}, self.results is {}".format(results,self.results))
+                            #log.debug(" - before results is {}, self.results is {}".format(results,self.results))
                             if not self.results:
                                 self.results.update(results)
                             else:
                                 # merge series dict
                                 if results.get('series'):
                                     self.results.get('series').update(results.get('series'))
-                            #log.debug("- after results is {}, self.results is {}".format(results,self.results))
+                            #log.debug(" - after results is {}, self.results is {}".format(results,self.results))
                             break
                         except (socket.gaierror, requests.exceptions.ConnectionError) as ex:
                             # on down nodes, retry on another up to "tries" times
