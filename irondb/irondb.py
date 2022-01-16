@@ -7,7 +7,6 @@ import json
 import os
 import binascii
 import re
-import time
 
 try:
     from json.decoder import JSONDecodeError
@@ -357,7 +356,6 @@ class IRONdbMeasurementFetcher(object):
     def add_leaf(self, leaf_name, leaf_data):
         self.leaves.append({'leaf_name': leaf_name, 'leaf_data': leaf_data})
 
-
     def fetch(self, query_log, start_time, end_time):
         global gas_next_update
         if (len(self.leaves) == 0):
@@ -365,77 +363,116 @@ class IRONdbMeasurementFetcher(object):
             return
         if (self.fetched == False):
             self.lock.acquire()
-            # update graphite_adjust_step.json if defined
-            if self.gas_url and gas_next_update <= time.time():
+            # update graphite_adjust_step.json if url defined
+            if self.gas_url and gas_next_update <= int(time.time()):
                 self.gas = retrieve_gas(self.gas_url, self.connection_timeout, self.timeout)
-                gas_next_update = time.time() + gas_ttl
+                gas_next_update = int(time.time()) + self.gas_ttl
             # recheck in case we were waiting
             if (self.fetched == False):
-                log.debug("- gas is {}".format(self.gas))
-                params = {}
-                params['names'] = self.leaves
-                params['start'] = start_time
-                params['end'] = end_time
-                now = int(time.time())
-                if start_time < (now - self.rollup_window):
-                    params['database_rollups'] = True
-                else:
-                    params['database_rollups'] = self.database_rollups
-                for i in range(0, self.retries):
-                    try:
-                        self.fetched = False
-                        query_start = time.gmtime()
-                        node = urls.series_multi
-                        data_type = "json"
-                        send_headers = copy.deepcopy(self.headers)
-                        if self.zipkin_enabled == True:
-                            traceheader = binascii.hexlify(os.urandom(8))
-                            send_headers['X-B3-TraceId'] = traceheader
-                            send_headers['X-B3-SpanId'] = traceheader
-                            if self.zipkin_event_trace_level == 1:
-                                send_headers['X-Mtev-Trace-Event'] = '1'
-                            elif self.zipkin_event_trace_level == 2:
-                                send_headers['X-Mtev-Trace-Event'] = '2'
-                        if self.max_step:
-                            params['step'] = self.max_step      
-                        log.debug("- params is {}".format(params))        
-                        d = requests.post(urls.series_multi, json = params, headers = send_headers,
-                                          timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)))
-                        d.raise_for_status()
-                        if 'content-type' in d.headers and d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
-                            self.results = irondb_flatbuf.metric_get_results(d.content)
-                            self.fetched = True
-                            data_type = "flatbuffer"
+                log.debug("- gas is {}".format(str(self.gas)))
+                # special dict for storing steps together with leaves
+                gas_steps = {}
+                # if we have gas and it's defined
+                if self.gas_url and self.gas:
+                    for leaf in self.leaves:
+                        step = None
+                        for rex in self.gas:
+                            # it's O(N^2) but I doubt we can optimize it
+                            # you need to check all names against all regexes
+                            # from top to bottom until first match
+                            if rex.search(leaf['leaf_name']):
+                                step = self.gas[rex]
+                                break
+                        # if we find match - append leaf to list bound to step in dict
+                        # otherwise put in default (None) bucket
+                        if isinstance(gas_steps.get(step), list):
+                            gas_steps[step].append(leaf)
                         else:
-                            self.results = d.json()
-                            self.fetched = True
-
-                        result_count = len(self.results["series"]) if self.results else -1
-                        query_type = "rollup data" if params["database_rollups"] else "raw data"
-                        query_log.query_log(node, query_start, d.elapsed, result_count, json.dumps(params), query_type, data_type, start_time, end_time)
-                        break
-                    except (socket.gaierror, requests.exceptions.ConnectionError) as ex:
-                        # on down nodes, retry on another up to "tries" times
-                        log.exception("IRONdbMeasurementFetcher.fetch ConnectionError %s" % ex)
-                    except requests.exceptions.ConnectTimeout as ex:
-                        # on down nodes, retry on another up to "tries" times
-                        log.exception("IRONdbMeasurementFetcher.fetch ConnectTimeout %s" % ex)
-                    except irondb_flatbuf.FlatBufferError as ex:
-                        # flatbuffer error, try again
-                        log.exception("IRONdbMeasurementFetcher.fetch FlatBufferError %s" % ex)
-                    except JSONDecodeError as ex:
-                        # json error, try again
-                        log.exception("IRONdbMeasurementFetcher.fetch JSONDecodeError %s" % ex)
-                    except requests.exceptions.ReadTimeout as ex:
-                        # on down nodes, retry on another up to "tries" times
-                        log.exception("IRONdbMeasurementFetcher.fetch ReadTimeout %s" % ex)
-                    except requests.exceptions.HTTPError as ex:
-                        # http status code errors are failures, stop immediately
-                        log.exception("IRONdbMeasurementFetcher.fetch HTTPError %s %s" % (ex, d.content))
-                        break
-            if settings.DEBUG:
-                log.debug("IRONdbMeasurementFetcher.fetch results: %s" % json.dumps(self.results))
-            self.lock.release()
+                            gas_steps[step] = []
+                            gas_steps[step].append(leaf)
+                else:
+                    # just put all leaves in single batch for retrieve
+                    # if we have step - put all leaves there
+                    # otherwise let's use special step None for that purpose
+                    gas_steps[self.max_step] = self.leaves
+                log.debug("- gas_steps is {}".format(gas_steps)) 
+                # loop over steps dict
+                params = {}
+                for step in gas_steps:
+                    leaves = gas_steps[step]
+                    if step:
+                        params['step'] = step  
+                    params['names'] = leaves
+                    params['start'] = start_time
+                    params['end'] = end_time
+                    now = int(time.time())
+                    if start_time < (now - self.rollup_window):
+                        params['database_rollups'] = True
+                    else:
+                        params['database_rollups'] = self.database_rollups
+                    for i in range(0, self.retries):
+                        try:
+                            self.fetched = False
+                            query_start = time.gmtime()
+                            node = urls.series_multi
+                            send_headers = copy.deepcopy(self.headers)
+                            if self.zipkin_enabled == True:
+                                traceheader = binascii.hexlify(os.urandom(8))
+                                send_headers['X-B3-TraceId'] = traceheader
+                                send_headers['X-B3-SpanId'] = traceheader
+                                if self.zipkin_event_trace_level == 1:
+                                    send_headers['X-Mtev-Trace-Event'] = '1'
+                                elif self.zipkin_event_trace_level == 2:
+                                    send_headers['X-Mtev-Trace-Event'] = '2'     
+                            log.debug("- params is {}".format(params))        
+                            d = requests.post(urls.series_multi, json = params, headers = send_headers,
+                                            timeout=((self.connection_timeout / 1000.0), (self.timeout / 1000.0)))
+                            d.raise_for_status()
+                            if 'content-type' in d.headers and d.headers['content-type'] == 'application/x-flatbuffer-metric-get-result-list':
+                                results = irondb_flatbuf.metric_get_results(d.content)
+                                #self.fetched = True
+                                data_type = "flatbuffer"
+                            else:
+                                results = d.json()
+                                #self.fetched = True
+                                data_type = "json"
+                            result_count = len(results["series"]) if results else -1
+                            query_type = "rollup data" if params["database_rollups"] else "raw data"
+                            query_log.query_log(node, query_start, d.elapsed, result_count, json.dumps(params), query_type, data_type, start_time, end_time)
+                            #log.debug("- before results is {}, self.results is {}".format(results,self.results))
+                            if not self.results:
+                                self.results.update(results)
+                            else:
+                                # merge series dict
+                                if results.get('series'):
+                                    self.results.get('series').update(results.get('series'))
+                            #log.debug("- after results is {}, self.results is {}".format(results,self.results))
+                            break
+                        except (socket.gaierror, requests.exceptions.ConnectionError) as ex:
+                            # on down nodes, retry on another up to "tries" times
+                            log.exception("IRONdbMeasurementFetcher.fetch ConnectionError %s" % ex)
+                        except requests.exceptions.ConnectTimeout as ex:
+                            # on down nodes, retry on another up to "tries" times
+                            log.exception("IRONdbMeasurementFetcher.fetch ConnectTimeout %s" % ex)
+                        except irondb_flatbuf.FlatBufferError as ex:
+                            # flatbuffer error, try again
+                            log.exception("IRONdbMeasurementFetcher.fetch FlatBufferError %s" % ex)
+                        except JSONDecodeError as ex:
+                            # json error, try again
+                            log.exception("IRONdbMeasurementFetcher.fetch JSONDecodeError %s" % ex)
+                        except requests.exceptions.ReadTimeout as ex:
+                            # on down nodes, retry on another up to "tries" times
+                            log.exception("IRONdbMeasurementFetcher.fetch ReadTimeout %s" % ex)
+                        except requests.exceptions.HTTPError as ex:
+                            # http status code errors are failures, stop immediately
+                            log.exception("IRONdbMeasurementFetcher.fetch HTTPError %s %s" % (ex, d.content))
+                            break
+                result_count = len(self.results["series"]) if self.results else -1
+                if result_count >= 0:
+                    self.fetched = True
+                if settings.DEBUG:
+                    log.debug("IRONdbMeasurementFetcher.fetch results: %s" % json.dumps(self.results))
+                self.lock.release()
             
     def is_error(self):
         return self.fetched == False or self.results == None or 'error' in self.results or len(self.results['series']) == 0
@@ -502,7 +539,7 @@ class IRONdbFinder(BaseFinder):
             self.gas_ttl = 900
         else:
             IRONdbLocalSettings.load(self)
-        gas_next_update = time.time() + self.gas_ttl
+        gas_next_update = int(time.time()) + self.gas_ttl
 
     def query_log(self, node, start, elapsed, result_count, query, query_type, data_format, data_start, data_end):
         if self.query_log_enabled == False:
