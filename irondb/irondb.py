@@ -624,9 +624,11 @@ class IRONdbFinder(BaseFinder):
         measurement_headers = copy.deepcopy(self.headers)
         measurement_headers['Accept'] = 'application/x-flatbuffer-metric-get-result-list'
         in_this_batch = 0
-        new_step = self.max_step
         fset = []
         fetcher = self.newfetcher(fset, measurement_headers)
+        new_step = self.max_step
+        fetchers_cache = {}
+        fetchers_cache[new_step] = fetcher
         for pattern, names in all_names.items():
             for name in names:
                 if 'leaf' in name and 'leaf_data' in name:
@@ -640,11 +642,19 @@ class IRONdbFinder(BaseFinder):
                                 new_step = self.gas[rex]
                                 break
                     if self.batch_size == 0 or in_this_batch >= self.batch_size or new_step != self.max_step:
-                        # start new batch if step not match, suboptimal
-                        # TODO: maybe we can group them in advance?
-                        in_this_batch = 0
-                        self.max_step = new_step
-                        fetcher = self.newfetcher(fset, measurement_headers)
+                        # check do we have fetcher with proper step and not full
+                        cached = fetchers_cache.get(new_step)
+                        if cached and cached.max_step == new_step and len(cached.leaves) < self.batch_size:
+                            # reuse it
+                            in_this_batch = len(cached.leaves)
+                            fetcher = cached
+                        else:
+                            # spawn new fetcher an add it to cache
+                            in_this_batch = 0
+                            self.max_step = new_step
+                            fetcher = self.newfetcher(fset, measurement_headers)
+                            if not fetchers_cache.get(new_step):
+                                fetchers_cache[new_step] = fetcher
 
                     fetcher.add_leaf(name['name'], name['leaf_data'])
                     name['fetcher'] = fetcher
