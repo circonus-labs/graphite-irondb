@@ -55,6 +55,10 @@ def retrieve_gas(url, connection_timeout, timeout):
     or return empty dict if broken or non-retrievable
     """
     gas = OrderedDict()
+    if not url.startswith('http'):
+        # relative url
+        global urls
+        url = '{0}{1}'.format(urls.host, url)
     try:
         # retrieve graphite_adjust_step.json file
         r = requests.get(url, params={}, headers={},
@@ -64,8 +68,7 @@ def retrieve_gas(url, connection_timeout, timeout):
             for line in r.json():
                 rx = re.compile(line['re'])
                 gas[rx] = line['step']
-    # TODO: proper error processing
-    except Exception as ex:
+    except (requests.exceptions.RequestException, re.error, AttributeError) as ex:
         pass
     return gas
 
