@@ -115,7 +115,7 @@ case you will get the proper result of aggregating functions even if database ro
 
 `IRONDB_MIN_ROLLUP_SPAN` minimal rollup span for irondb data. Used in step calculation, default is 60.
 
-`IRONDB_GRAPHITE_ADJUST_STEP_URL` - URL to `graphite_adjust_step.json` file. If it is present then metrics will be grouped during retrieve phase by step parameter, so, IronDB would return proper results. If empty or not retrievable then grouping functionality will be disabled.
+`IRONDB_GRAPHITE_ADJUST_STEP_URL` - URL to `graphite_adjust_step.json` file. If it is present then metrics will be grouped during retrieve phase by step parameter, so, IronDB would return proper results. If empty or not retrievable, then grouping functionality will be disabled. Can be absolute URL or relative to `IRONDB_URL` (if not starting with "http"). I.e., if `IRONDB_URL` is "http://host/graphite/userid/" then if `graphite_adjust_step.json` is serving from "http://host/graphite_adjust_step.json" then `IRONDB_GRAPHITE_ADJUST_STEP_URL` should be "../../graphite_adjust_step.json".  Also, in case of multiple URLs in `IRONDB_URL` file will be loaded from every URL in round-robin fashion, same as API calls.
 
 `IRONDB_GRAPHITE_ADJUST_STEP_URL_TTL` - the number of seconds to cache content of retrieved `graphite_adjust_step.json` file. Default is 900 (15 minutes). If the refresh attempt is unsuccessful, it will disable grouping functionality until next successful retrieve attempt.
 
