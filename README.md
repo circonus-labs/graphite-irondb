@@ -55,6 +55,7 @@ In your graphite's `local_settings.py`:
     IRONDB_MAX_RETRIES = 2
     IRONDB_QUERY_LOG = False
     IRONDB_URLS_ROTATE = True
+    AUTOCOMPRESS_GAPS_IN_DERIVATIVE_FUNCTIONS=True
 
 Where `irondb-host` is the DNS or IP of an IRONdb node, `port`
 (usually 8112) is the listening port for IRONdb, and <account> is some
@@ -97,13 +98,26 @@ with wildcard expansions in the datapoints.
 
 `IRONDB_USE_DATABASE_ROLLUPS` is an optional Python boolean (True|False)
 and will default to True. IRONdb can automatically choose the "step"
-of the returned data if this param is set to True.  Calculation for
+of the returned data if this param is set to True.  The calculation for
 "step" is based on the time span of the query.  If you set this to
 False, IRONdb will return the minimum rollup span it is configured to
 return for all data.  This can result in slower renders as much more
 data will be returned than may be necessary for rendering.  However,
-some graphite functions (like summarize) require finer resolution data
-in order to group data properly.
+some graphite functions (like `summarize()`) require finer resolution data
+to group data properly (but now you can use `IRONDB_CALCULATE_STEP_FROM_TARGET`)
+ to fix that problem (see next section).
+
+`IRONDB_CALCULATE_STEP_FROM_TARGET` is an optional Python boolean (True|False)
+and will default to False. If enabled and if `IRONDB_USE_DATABASE_ROLLUPS=True` 
+the step will be calculated by parsing the target function, extracting `windowSize` and 
+`intervalString` parameter from functions and picking minimal value, i.e. in that 
+case you will get the proper result of aggregating functions even if database rollups are enabled.
+
+`IRONDB_MIN_ROLLUP_SPAN` minimal rollup span for irondb data. Used in step calculation, default is 60.
+
+`IRONDB_GRAPHITE_ADJUST_STEP_URL` - URL to `graphite_adjust_step.json` file. If it is present then metrics will be grouped during retrieve phase by step parameter, so, IronDB would return proper results. If empty or not retrievable, then grouping functionality will be disabled. Can be absolute URL or relative to `IRONDB_URL` (if not starting with "http"). I.e., if `IRONDB_URL` is "http://host/graphite/userid/" then if `graphite_adjust_step.json` is serving from "http://host/graphite_adjust_step.json" then `IRONDB_GRAPHITE_ADJUST_STEP_URL` should be "../../graphite_adjust_step.json".  Also, in case of multiple URLs in `IRONDB_URL` file will be loaded from every URL in round-robin fashion, same as API calls.
+
+`IRONDB_GRAPHITE_ADJUST_STEP_URL_TTL` - the number of seconds to cache content of retrieved `graphite_adjust_step.json` file. Default is 900 (15 minutes). If the refresh attempt is unsuccessful, it will disable grouping functionality until next successful retrieve attempt.
 
 `IRONDB_USE_ACTIVITY_TRACKING` is an optional Python boolean (True|False)
 and will default to True. IRONdb supports tracking of metric activity without
@@ -133,6 +147,8 @@ enable additional event tracing. Right now, the only acceptable values
 are `0` (off), `1` (basic tracing), and `2` (detailed tracing). `2` can
 potentially cause performance issues - use this level sparingly. Only
 recommended for when trying to debug something specific.
+
+
 
 Changelog
 ---------
