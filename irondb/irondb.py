@@ -62,7 +62,11 @@ def retrieve_gas(url, connection_timeout, timeout):
     if not url.startswith('http'):
         # relative url
         global urls
-        url = '{0}{1}'.format(urls.host, url)
+        if url.startswith('/'):
+            irondb_url_parsed = list(urlparse(urls.host))
+            url = '{0}://{1}{2}'.format(irondb_url_parsed[0], irondb_url_parsed[1], url)
+        else:
+            url = '{0}{1}'.format(urls.host, url)
     try:
         # retrieve graphite_adjust_step.json file
         r = requests.get(url, params={}, headers={},
