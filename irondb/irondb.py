@@ -12,8 +12,10 @@ try:
     from json.decoder import JSONDecodeError
 except ImportError:
     JSONDecodeError = ValueError
+
 from future.standard_library import install_aliases
 install_aliases()
+
 try:
     from urllib.parse import urlparse, urlunparse
 except ImportError:

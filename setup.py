@@ -46,10 +46,11 @@ setup_args=dict(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 3',
         'Topic :: System :: Monitoring',
     ),
     install_requires=(
-        'requests','physiq-flatbuffers','future'
+        'requests','flatbuffers','future'
     )
 )
 
