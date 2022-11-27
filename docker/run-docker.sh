@@ -143,7 +143,7 @@ then
     msg "${BLUE}Running Docker Container...${NOFORMAT}"
     docker run --rm -v $(dirname $(pwd)):/graphite-irondb \
      -p 8080:80 \
-     -e CIRCONUS_API_KEY=${CIRCONUS_API_KEY} \
+     -e IRONDB_CIRCONUS_TOKEN=${CIRCONUS_API_KEY} \
      -e TEST_ONLY=$test_only \
      -e FLATCC=$flatcc \
      --name graphite-irondb-python3 \
@@ -155,7 +155,7 @@ else
     msg "${BLUE}Running Docker Container...${NOFORMAT}"
     docker run --rm -v $(dirname $(pwd)):/graphite-irondb \
      -p 8080:80 \
-     -e CIRCONUS_API_KEY=${CIRCONUS_API_KEY} \
+     -e IRONDB_CIRCONUS_TOKEN=${CIRCONUS_API_KEY} \
      -e TEST_ONLY=$test_only \
      -e FLATCC=$flatcc \
      --name graphite-irondb-python2 \
