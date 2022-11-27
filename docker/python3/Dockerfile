@@ -30,7 +30,8 @@ ENV CONF_DIR /opt/graphite/conf
 ENV STORAGE_DIR /opt/graphite/storage
 ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/webapp/"
 
-RUN pip install virtualenv \
+ARG graphite_version=1.1.10
+RUN pip install virtualenv==16.7.10 \
     && virtualenv /opt/graphite \
     && source /opt/graphite/bin/activate \
     && git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \
@@ -39,10 +40,9 @@ RUN pip install virtualenv \
     && python3 ./setup.py install --with-flatcc=/opt/circonus \
     && pip install --no-binary=:all: https://github.com/graphite-project/whisper/tarball/master \
     && pip install --no-binary=:all: https://github.com/graphite-project/carbon/tarball/master \
-    && pip install --no-binary=:all: https://github.com/graphite-project/graphite-web/tarball/master \
-    && curl -L https://github.com/graphite-project/graphite-web/tarball/master --output /graphite-web.tar.gz \
-    && tar xf /graphite-web.tar.gz \
-    && rm -rf /opt/graphite/webapp/graphite && mv /graphite-p*/webapp/graphite /opt/graphite/webapp/graphite \
+    && git clone -b ${graphite_version} --depth 1 https://github.com/graphite-project/graphite-web.git /usr/local/src/graphite-web \
+    && cd /usr/local/src/graphite-web \
+    && pip install -r requirements.txt && python3 ./setup.py install \
     && pip install gunicorn \
     && mkdir -p /opt/graphite/lib/python3.8/storage/log/webapp/ \
     && /opt/graphite/bin/django-admin.py migrate --settings=graphite.settings
