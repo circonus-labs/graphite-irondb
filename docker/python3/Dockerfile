@@ -33,6 +33,10 @@ ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/webapp/"
 RUN pip install virtualenv \
     && virtualenv /opt/graphite \
     && source /opt/graphite/bin/activate \
+    && git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \
+    && cd /usr/local/src/irondbgraphite \
+    && pip install future requests flatbuffers \
+    && python3 ./setup.py install --with-flatcc=/opt/circonus \
     && pip install --no-binary=:all: https://github.com/graphite-project/whisper/tarball/master \
     && pip install --no-binary=:all: https://github.com/graphite-project/carbon/tarball/master \
     && pip install --no-binary=:all: https://github.com/graphite-project/graphite-web/tarball/master \
