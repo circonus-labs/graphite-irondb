@@ -31,8 +31,8 @@ ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/webapp/"
 
 ARG graphite_version=1.1.10
 RUN curl https://bootstrap.pypa.io/pip/2.7/get-pip.py -o /tmp/get-pip.py \
-   && python2 /tmp/get-pip.py && rm /tmp/get-pip.py \
-   && pip install virtualenv==16.7.10 \
+   && python2 /tmp/get-pip.py pip==20.1.1 setuptools==50.3.2 wheel==0.35.1 && rm /tmp/get-pip.py \
+   && pip install 'virtualenv<20' \
    && virtualenv /opt/graphite \
    && pip install incremental==17.5.0 twisted==20.3.0 django==1.11.29 \
    && git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \
