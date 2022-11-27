@@ -31,7 +31,9 @@ ENV STORAGE_DIR /opt/graphite/storage
 ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/webapp/"
 
 ARG graphite_version=1.1.10
-RUN pip install virtualenv==16.7.10 \
+RUN curl https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py \
+    && python3 /tmp/get-pip.py pip==20.1.1 setuptools==50.3.2 wheel==0.35.1 && rm /tmp/get-pip.py \
+    && pip install virtualenv==16.7.10 \
     && virtualenv /opt/graphite \
     && source /opt/graphite/bin/activate \
     && git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \

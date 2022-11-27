@@ -32,19 +32,19 @@ ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/webapp/"
 ARG graphite_version=1.1.10
 RUN curl https://bootstrap.pypa.io/pip/2.7/get-pip.py -o /tmp/get-pip.py \
    && python2 /tmp/get-pip.py && rm /tmp/get-pip.py \
-   && pip2 install virtualenv==16.7.10 \
+   && pip install virtualenv==16.7.10 \
    && virtualenv /opt/graphite \
-   && pip2 install incremental==17.5.0 twisted==20.3.0 django==1.11.29 \
+   && pip install incremental==17.5.0 twisted==20.3.0 django==1.11.29 \
    && git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \
    && cd /usr/local/src/irondbgraphite \
    && pip install future requests==2.27.1 flatbuffers \
    && python3 ./setup.py install --with-flatcc=/opt/circonus \
-   && pip2 install --no-binary=:all: https://github.com/graphite-project/whisper/tarball/master \
-   && pip2 install --no-binary=:all: https://github.com/graphite-project/carbon/tarball/master \
+   && pip install --no-binary=:all: https://github.com/graphite-project/whisper/tarball/master \
+   && pip install --no-binary=:all: https://github.com/graphite-project/carbon/tarball/master \
    && git clone -b ${graphite_version} --depth 1 https://github.com/graphite-project/graphite-web.git /usr/local/src/graphite-web \
    && cd /usr/local/src/graphite-web \
-   && pip2 install -r requirements.txt && python ./setup.py install \
-   && pip2 install gunicorn \
+   && pip install -r requirements.txt && python2 ./setup.py install \
+   && pip install gunicorn \
    && PYTHONPATH=$GRAPHITE_ROOT/webapp django-admin.py migrate --settings=graphite.settings
 RUN chmod 777 /opt/graphite/storage/graphite.db
 COPY src/graphite /etc/nginx/sites-available/graphite
