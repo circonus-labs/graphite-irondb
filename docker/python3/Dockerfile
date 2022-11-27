@@ -20,8 +20,8 @@ RUN apt-get update \
 
 FROM distro as flatcc
 RUN git clone https://github.com/dvidelabs/flatcc.git \
-    cd flatcc && scripts/build.sh \
-    ln -s /flatcc /opt/circonus
+    && cd flatcc && scripts/build.sh \
+    && ln -s /flatcc /opt/circonus
 
 FROM flatcc as graphite
 SHELL ["/bin/bash", "-c"]
