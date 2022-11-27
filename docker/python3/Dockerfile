@@ -20,8 +20,8 @@ RUN apt-get update \
 
 FROM distro as flatcc
 RUN git clone https://github.com/dvidelabs/flatcc.git \
-    cd flatcc && scripts/build.sh \
-    ln -s /flatcc /opt/circonus
+    && cd flatcc && scripts/build.sh \
+    && ln -s /flatcc /opt/circonus
 
 FROM flatcc as graphite
 SHELL ["/bin/bash", "-c"]
@@ -38,9 +38,9 @@ RUN pip install virtualenv \
     && pip install --no-binary=:all: https://github.com/graphite-project/graphite-web/tarball/master \
     && curl -L https://github.com/graphite-project/graphite-web/tarball/master --output /graphite-web.tar.gz \
     && tar xf /graphite-web.tar.gz \
-    && rm -rf /opt/graphite/webapp/graphite && mv /graphite-p*/webapp/graphite /opt/graphite/webapp/graphite
-    && pip install gunicorn
-    && mkdir -p /opt/graphite/lib/python3.8/storage/log/webapp/ 
+    && rm -rf /opt/graphite/webapp/graphite && mv /graphite-p*/webapp/graphite /opt/graphite/webapp/graphite \
+    && pip install gunicorn \
+    && mkdir -p /opt/graphite/lib/python3.8/storage/log/webapp/ \
     && /opt/graphite/bin/django-admin.py migrate --settings=graphite.settings
 
 COPY src/graphite /etc/nginx/sites-available/graphite
