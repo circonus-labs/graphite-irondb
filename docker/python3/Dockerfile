@@ -49,8 +49,6 @@ RUN pip3 install virtualenv \
     && django-admin.py collectstatic --settings=graphite.settings
 
 COPY src/graphite /etc/nginx/sites-available/graphite
-COPY src/graphite-web.service /etc/systemd/system/graphite-web.service
-COPY src/graphite-web.socket /etc/systemd/system/graphite-web.socket
 RUN ln -s /etc/nginx/sites-available/graphite /etc/nginx/sites-enabled \
     && rm -f /etc/nginx/sites-enabled/default
 COPY src/local_settings.py /opt/graphite/webapp/graphite/local_settings.py
