@@ -6,7 +6,7 @@ RUN apt-get update \
         nginx \
         python2-minimal \
         software-properties-common \
-        python-dev \
+        python2-dev \
         libcairo2-dev \
         libffi-dev \
         build-essential \
@@ -18,34 +18,32 @@ RUN apt-get update \
      && python2 get-pip.py
 
 FROM distro as flatcc
-RUN git clone https://github.com/dvidelabs/flatcc.git \
-    && cd flatcc && scripts/build.sh \
-    && ln -s /flatcc /opt/circonus
+RUN git clone https://github.com/dvidelabs/flatcc.git /opt/flatcc \
+    && cd /opt/flatcc && scripts/build.sh \
+    && ln -s /opt/flatcc /opt/circonus
 
 FROM flatcc as graphite
 SHELL ["/bin/bash", "-c"]
 ENV GRAPHITE_ROOT /opt/graphite
 ENV CONF_DIR /opt/graphite/conf
 ENV STORAGE_DIR /opt/graphite/storage
-ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/webapp/"
+ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/lib/python2.7/site-packages/:/opt/graphite/webapp/"
 
 ARG graphite_version=1.1.10
-RUN curl https://bootstrap.pypa.io/pip/2.7/get-pip.py -o /tmp/get-pip.py \
-   && python2 /tmp/get-pip.py pip==20.1.1 setuptools==50.3.2 wheel==0.35.1 && rm /tmp/get-pip.py \
-   && pip install 'virtualenv<20' \
+RUN pip2 install virtualenv \
    && virtualenv /opt/graphite \
-   && pip install incremental==17.5.0 twisted==20.3.0 django==1.11.29 \
+   && pip2 install incremental==17.5.0 twisted==20.3.0 django==1.11.29 \
    && git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \
    && cd /usr/local/src/irondbgraphite \
-   && pip install future requests==2.27.1 flatbuffers \
-   && python3 ./setup.py install --with-flatcc=/opt/circonus \
-   && pip install --no-binary=:all: https://github.com/graphite-project/whisper/tarball/master \
-   && pip install --no-binary=:all: https://github.com/graphite-project/carbon/tarball/master \
+   && pip2 install future requests==2.27.1 flatbuffers \
+   && python2 ./setup.py install --with-flatcc=/opt/circonus \
+   && pip2 install --no-binary=:all: https://github.com/graphite-project/whisper/tarball/master \
+   && pip2 install --no-binary=:all: https://github.com/graphite-project/carbon/tarball/master \
    && git clone -b ${graphite_version} --depth 1 https://github.com/graphite-project/graphite-web.git /usr/local/src/graphite-web \
    && cd /usr/local/src/graphite-web \
-   && pip install -r requirements.txt && python2 ./setup.py install \
-   && pip install gunicorn \
-   && PYTHONPATH=$GRAPHITE_ROOT/webapp django-admin.py migrate --settings=graphite.settings
+   && pip2 install -r requirements.txt && python2 ./setup.py install \
+   && pip2 install gunicorn \
+   && django-admin.py migrate --settings=graphite.settings
 RUN chmod 777 /opt/graphite/storage/graphite.db
 COPY src/graphite /etc/nginx/sites-available/graphite
 COPY src/graphite-web.service /etc/systemd/system/graphite-web.service

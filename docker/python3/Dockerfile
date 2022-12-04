@@ -19,34 +19,32 @@ RUN apt-get update \
         ninja-build
 
 FROM distro as flatcc
-RUN git clone https://github.com/dvidelabs/flatcc.git \
-    && cd flatcc && scripts/build.sh \
-    && ln -s /flatcc /opt/circonus
+RUN git clone https://github.com/dvidelabs/flatcc.git /opt/flatcc \
+    && cd /opt/flatcc && scripts/build.sh \
+    && ln -s /opt/flatcc /opt/circonus
 
 FROM flatcc as graphite
 SHELL ["/bin/bash", "-c"]
 ENV GRAPHITE_ROOT /opt/graphite
 ENV CONF_DIR /opt/graphite/conf
 ENV STORAGE_DIR /opt/graphite/storage
-ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/webapp/"
+ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/lib/python3.10/site-packages/:/opt/graphite/webapp/"
 
 ARG graphite_version=1.1.10
-RUN curl https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py \
-    && python3 /tmp/get-pip.py pip==20.1.1 setuptools==50.3.2 wheel==0.35.1 && rm /tmp/get-pip.py \
-    && pip install 'virtualenv<20' \
+RUN pip3 install virtualenv \
     && virtualenv /opt/graphite \
     && source /opt/graphite/bin/activate \
     && git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \
     && cd /usr/local/src/irondbgraphite \
-    && pip install future requests flatbuffers \
+    && pip3 install future requests flatbuffers \
     && python3 ./setup.py install --with-flatcc=/opt/circonus \
-    && pip install --no-binary=:all: https://github.com/graphite-project/whisper/tarball/master \
-    && pip install --no-binary=:all: https://github.com/graphite-project/carbon/tarball/master \
+    && pip3 install --no-binary=:all: https://github.com/graphite-project/whisper/tarball/master \
+    && pip3 install --no-binary=:all: https://github.com/graphite-project/carbon/tarball/master \
     && git clone -b ${graphite_version} --depth 1 https://github.com/graphite-project/graphite-web.git /usr/local/src/graphite-web \
     && cd /usr/local/src/graphite-web \
-    && pip install -r requirements.txt && python3 ./setup.py install \
-    && pip install gunicorn \
-    && mkdir -p /opt/graphite/lib/python3.8/storage/log/webapp/ \
+    && pip3 install -r requirements.txt && python3 ./setup.py install \
+    && pip3 install gunicorn \
+    && mkdir -p /opt/graphite/lib/python3.10/storage/log/webapp/ \
     && /opt/graphite/bin/django-admin.py migrate --settings=graphite.settings
 
 COPY src/graphite /etc/nginx/sites-available/graphite

@@ -32,8 +32,7 @@ source testflatbuffer.sh || $(echo >&2 -e "Tests failed!" && exit 1)
 
 if [[ $TEST_ONLY = false ]]
 then 
-    sed -i "s/@@CIRCONUS_API_KEY@@/$CIRCONUS_API_KEY/g" /opt/graphite/webapp/graphite/local_settings.py || echo >&2 -e "Failed to update CIRCONUS_API_KEY in local_settings.py"
-    PYTHONPATH=/opt/graphite/webapp \
+    PYTHONPATH="/opt/graphite/lib/:/opt/graphite/lib/python3.10/site-packages/:/opt/graphite/webapp/" \
     /opt/graphite/bin/gunicorn wsgi \
     --workers=4 \
     --bind=127.0.0.1:8080 \
