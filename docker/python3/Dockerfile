@@ -45,7 +45,8 @@ RUN pip3 install virtualenv \
     && pip3 install -r requirements.txt && python3 ./setup.py install \
     && pip3 install gunicorn \
     && mkdir -p /opt/graphite/lib/python3.10/site-packages/storage/log/webapp/ \
-    && /opt/graphite/bin/django-admin.py migrate --settings=graphite.settings
+    && /opt/graphite/bin/django-admin.py migrate --settings=graphite.settings \
+    && django-admin.py collectstatic --settings=graphite.settings
 
 COPY src/graphite /etc/nginx/sites-available/graphite
 COPY src/graphite-web.service /etc/systemd/system/graphite-web.service
