@@ -9,4 +9,3 @@ PYTHONPATH="/opt/graphite/lib/:/opt/graphite/lib/python3.10/site-packages/:/opt/
     --bind=127.0.0.1:8080 \
     --preload \
     --pythonpath=/opt/graphite/webapp/graphite
-
