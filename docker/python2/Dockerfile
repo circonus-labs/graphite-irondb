@@ -43,6 +43,7 @@ RUN pip2 install virtualenv \
    && cd /usr/local/src/graphite-web \
    && pip2 install -r requirements.txt && python2 ./setup.py install \
    && pip2 install gunicorn \
+   && mkdir -p /opt/graphite/lib/python2.7/site-packages/storage/log/webapp/ \
    && django-admin.py migrate --settings=graphite.settings
 RUN chmod 777 /opt/graphite/storage/graphite.db
 COPY src/graphite /etc/nginx/sites-available/graphite
