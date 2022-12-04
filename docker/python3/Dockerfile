@@ -52,7 +52,7 @@ RUN pip3 install virtualenv \
 COPY src/graphite /etc/nginx/sites-available/graphite
 RUN ln -s /etc/nginx/sites-available/graphite /etc/nginx/sites-enabled \
     && rm -f /etc/nginx/sites-enabled/default
-COPY src/local_settings.py /opt/graphite/webapp/graphite/local_settings.py
+COPY src/local_settings.py /opt/graphite/lib/python3.10/site-packages/graphite_web-1.1.10-py3.10.egg/graphite/local_settings.py
 COPY src/entrypoint.sh /
 
 EXPOSE 80

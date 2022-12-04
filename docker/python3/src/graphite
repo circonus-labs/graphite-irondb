@@ -7,7 +7,7 @@ server {
 
     server_name localhost;
 
-    root /opt/graphite/lib/python3.10/site-packages/graphite_web-1.1.10-py3.10.egg/webapp;
+    root /opt/graphite/lib/python3.10/site-packages/graphite_web-1.1.10-py3.10.egg/graphite;
 
     access_log /var/log/nginx/graphite.access.log;
     error_log  /var/log/nginx/graphite.error.log;
@@ -18,7 +18,7 @@ server {
 
     # serve static content from the "content" directory
     location /static {
-        alias /opt/graphite/lib/python3.10/site-packages/graphite_web-1.1.10-py3.10.egg/content;
+        alias /opt/graphite/lib/python3.10/site-packages/graphite_web-1.1.10-py3.10.egg/webapp/content;
         expires max;
     }
 

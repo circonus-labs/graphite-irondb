@@ -8,4 +8,4 @@ PYTHONPATH="/opt/graphite/lib/:/opt/graphite/lib/python3.10/site-packages/:/opt/
     --workers=4 \
     --bind=127.0.0.1:8080 \
     --preload \
-    --pythonpath=/opt/graphite/webapp/graphite
+    --pythonpath=/opt/graphite/lib/python3.10/site-packages/graphite_web-1.1.10-py3.10.egg/graphite
