@@ -31,10 +31,7 @@ ENV STORAGE_DIR /opt/graphite/storage
 ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/lib/python3.10/site-packages/:/opt/graphite/webapp/"
 
 ARG graphite_version=1.1.10
-RUN pip3 install virtualenv \
-    && virtualenv /opt/graphite \
-    && source /opt/graphite/bin/activate \
-    && git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \
+RUN git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \
     && cd /usr/local/src/irondbgraphite \
     && pip3 install future requests flatbuffers \
     && python3 ./setup.py install --with-flatcc=/opt/circonus \
@@ -44,15 +41,17 @@ RUN pip3 install virtualenv \
     && cd /usr/local/src/graphite-web \
     && pip3 install -r requirements.txt && python3 ./setup.py install \
     && pip3 install gunicorn \
-    && mkdir -p /opt/graphite/lib/python3.10/site-packages/storage/log/webapp/ \
-    && /opt/graphite/bin/django-admin.py migrate --settings=graphite.settings \
-    && mkdir -p /opt/graphite/lib/python3.10/site-packages/graphite_web-1.1.10-py3.10.egg/content \
+    && mkdir -p /usr/local/lib/python3.10/site-packages/storage/log/webapp/ \
+    && mkdir -p /opt/graphite/storage/log/ \
+    && ln -s /usr/local/lib/python3.10/site-packages/storage/log/webapp/ /opt/graphite/storage/log/webapp/ \
+    && django-admin.py migrate --settings=graphite.settings \
+    && mkdir -p /usr/local/lib/python3.10/site-packages/graphite_web-1.1.10-py3.10.egg/content \
     && django-admin.py collectstatic --settings=graphite.settings
 
 COPY src/graphite /etc/nginx/sites-available/graphite
 RUN ln -s /etc/nginx/sites-available/graphite /etc/nginx/sites-enabled \
     && rm -f /etc/nginx/sites-enabled/default
-COPY src/local_settings.py /opt/graphite/lib/python3.10/site-packages/graphite_web-1.1.10-py3.10.egg/graphite/local_settings.py
+COPY src/local_settings.py /usr/local/lib/python3.10/site-packages/graphite_web-1.1.10-py3.10.egg/graphite/local_settings.py
 COPY src/entrypoint.sh /
 
 EXPOSE 80

@@ -30,9 +30,7 @@ ENV STORAGE_DIR /opt/graphite/storage
 ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/lib/python2.7/site-packages/:/opt/graphite/webapp/"
 
 ARG graphite_version=1.1.10
-RUN pip2 install virtualenv \
-   && virtualenv /opt/graphite \
-   && pip2 install incremental==17.5.0 twisted==20.3.0 django==1.11.29 \
+RUN pip2 install incremental==17.5.0 twisted==20.3.0 django==1.11.29 \
    && git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \
    && cd /usr/local/src/irondbgraphite \
    && pip2 install future requests==2.27.1 flatbuffers \
@@ -43,7 +41,9 @@ RUN pip2 install virtualenv \
    && cd /usr/local/src/graphite-web \
    && pip2 install -r requirements.txt && python2 ./setup.py install \
    && pip2 install gunicorn \
-   && mkdir -p /opt/graphite/lib/python2.7/site-packages/storage/log/webapp/ \
+   && mkdir -p /usr/lib/python2.7/site-packages/storage/log/webapp/ \
+   && mkdir -p /opt/graphite/storage/log/ \
+   && ln -s /usr/lib/python2.7/site-packages/storage/log/webapp/ /opt/graphite/storage/log/webapp/ \
    && django-admin.py migrate --settings=graphite.settings \
    && django-admin.py collectstatic --settings=graphite.settings
 
