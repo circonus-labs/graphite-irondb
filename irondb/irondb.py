@@ -222,6 +222,10 @@ urls = None
 urllength = 4096
 
 class IRONdbLocalSettings(object):
+    __slots__ = ('batch_size', 'headers', 'timeout', 'connection_timeout', 'activity_tracking',
+                 'database_rollups', 'rollup_window', 'min_rollup_span', 'gas', 'gas_url', 'gas_ttl',
+                 'calculate_step_from_target', 'max_retries', 'query_log_enabled',
+                 'zipkin_enabled', 'zipkin_event_trace_level', 'max_step')
     _inst = None
 
     @classmethod
@@ -235,6 +239,7 @@ class IRONdbLocalSettings(object):
 
     def __init__(self):
         global urls
+        self.headers = None
         try:
             _rotate_urls = getattr(settings, 'IRONDB_URLS_ROTATE')
         except AttributeError:
@@ -268,7 +273,6 @@ class IRONdbLocalSettings(object):
         try:
             token = getattr(settings, 'CIRCONUS_TOKEN')
             if token:
-                self.headers = {}
                 self.headers['X-Circonus-Auth-Token'] = token
                 self.headers['X-Circonus-App-Name'] = 'graphite-web'
         except AttributeError:
