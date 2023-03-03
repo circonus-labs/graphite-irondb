@@ -239,7 +239,7 @@ class IRONdbLocalSettings(object):
 
     def __init__(self):
         global urls
-        self.headers = None
+        self.headers = {}
         try:
             _rotate_urls = getattr(settings, 'IRONDB_URLS_ROTATE')
         except AttributeError:
