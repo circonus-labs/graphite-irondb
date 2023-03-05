@@ -21,9 +21,6 @@ Available options:
 --python3       Build for Python 3 (default true)
 --circonus-api  Circonus API Key needed to access api.circonus.com
 --irondb-urls   IronDB URS (in case of direct server access)
---test-only     Only run unit tests (default false)
---pure-python   Do not build flatcc C extension (default false)
-
 
 EOF
   exit
@@ -65,7 +62,7 @@ parse_params() {
   test_only=false
   CIRCONUS_API_KEY=''
   IRONDB_URL=''
-  python_version=0
+  python_version=3
   python3=true
   python2=false
   circonus_key_set=false
@@ -95,12 +92,6 @@ parse_params() {
       IRONDB_URLS="${2-}"
       irondb_urls_set=true
       shift
-      ;;
-    --test-only)
-      test_only=true
-      ;;
-    --pure-python)
-      flatcc=false
       ;;
     -?*) die "Unknown option: $1" ;;
     *) break ;;
@@ -133,8 +124,6 @@ msg "${BLUE}Parameters:${NOFORMAT}"
 [[ ! -z "${CIRCONUS_API_KEY}" ]] && msg "- Circonus API Key: ${CIRCONUS_API_KEY}"
 [[ ! -z "${IRONDB_URLS}" ]] && msg "- IronDB URLS: ${IRONDB_URLS}"
 msg "- Python Version: ${python_version}"
-msg "- Test only: ${test_only}"
-msg "- Build flatcc: ${flatcc}"
 
 msg "${BLUE}Stopping any instances of graphite-irondb container${NOFORMAT}"
 
@@ -168,8 +157,6 @@ then
     docker run --rm -v $(dirname $(pwd)):/graphite-irondb \
      -p 8080:80 \
      ${_IRONDB_PARAMS} \
-     -e TEST_ONLY=$test_only \
-     -e FLATCC=$flatcc \
      --name graphite-irondb-python3 \
      circonus-labs/graphite-irondb-python3 \
      || msg "${YELLOW}Container stopped.${NOFORMAT}"; true
@@ -180,8 +167,6 @@ else
     docker run --rm -v $(dirname $(pwd)):/graphite-irondb \
      -p 8080:80 \
      ${_IRONDB_PARAMS} \
-     -e TEST_ONLY=$test_only \
-     -e FLATCC=$flatcc \
      --name graphite-irondb-python2 \
      circonus-labs/graphite-irondb-python2 \
      || msg "${YELLOW}Container stopped.${NOFORMAT}"; true
