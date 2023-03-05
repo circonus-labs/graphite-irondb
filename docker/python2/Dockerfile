@@ -30,8 +30,11 @@ ENV STORAGE_DIR /opt/graphite/storage
 ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/lib/python2.7/site-packages/:/opt/graphite/webapp/"
 
 ARG graphite_version=1.1.10
+ARG irondbgraphite_repo="--branch python3-upd https://github.com/deniszh/graphite-irondb"
+#ARG irondbgraphite_repo="https://github.com/circonus-labs/graphite-irondb"
+
 RUN pip2 install incremental==17.5.0 twisted==20.3.0 django==1.11.29 \
-   && git clone --branch python3-upd https://github.com/deniszh/graphite-irondb /usr/local/src/irondbgraphite \
+   && git clone ${irondbgraphite_repo} /usr/local/src/irondbgraphite \
    && cd /usr/local/src/irondbgraphite \
    && pip2 install future requests==2.27.1 flatbuffers \
    && python2 ./setup.py install --with-flatcc=/opt/circonus \
