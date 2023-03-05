@@ -144,3 +144,7 @@ pyvenv.cfg
 /conf
 
 settings.json
+
+.vscode
+
+.DS_Store
