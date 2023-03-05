@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bash -x
 
 #original script: https://betterdev.blog/minimal-safe-bash-script-template/
 
@@ -62,9 +62,12 @@ parse_params() {
   # default values of variables set from params
   test_only=false
   CIRCONUS_API_KEY=''
+  IRONDB_URL=''
   python_version=0
   python3=false
   python2=false
+  circonus_key_set=false
+  irondb_url_set=false
   flatcc=true
 
   while :; do
@@ -81,14 +84,20 @@ parse_params() {
       ;; 
     --circonus-api)
       CIRCONUS_API_KEY="${2-}"
+      circonus_key_set=true
+      shift
+      ;;
+    --irondb-urls)
+      IRONDB_URLS="${2-}"
+      irondb_urls_set=true
       shift
       ;;
     --test-only)
       test_only=true
       ;;
-    # --pure-python)
-    #   flatcc=false
-    #   ;;
+    --pure-python)
+      flatcc=false
+      ;;
     -?*) die "Unknown option: $1" ;;
     *) break ;;
     esac
@@ -98,8 +107,10 @@ parse_params() {
   args=("$@")
 
   # check required params and arguments
-  [[ -z "${CIRCONUS_API_KEY}" ]] && [[ ${test_only} = false ]] \
-   && die "CIRCONUS_API_KEY is required for connection to api.circonus.com"
+  [[ ${circonus_key_set} = false ]] && [[ ${test_only} = false ]] && [[ ${irondb_urls_set} = false ]]\
+   && die "You need to set either CIRCONUS_API_KEY or IRONDB_URLS"
+  [[ ${circonus_key_set} = true ]] && [[ ${irondb_urls_set} = true ]]\
+   && die "You need to set either CIRCONUS_API_KEY or IRONDB_URLS but not both"
   [[ $python2 = true ]] && [[ $python3 = true ]] \
    && die "Please select either --python2 or --python3."
   [[ ${#args[@]} -gt 0 ]] && die "Unexepected arguments."
@@ -114,6 +125,7 @@ setup_colors
 cd $script_dir
 msg "${BLUE}Parameters:${NOFORMAT}"
 [[ ! -z "${CIRCONUS_API_KEY}" ]] && msg "- Circonus API Key: ${CIRCONUS_API_KEY}"
+[[ ! -z "${IRONDB_URLS}" ]] && msg "- IronDB URLS: ${IRONDB_URLS}"
 msg "- Python Version: ${python_version}"
 msg "- Test only: ${test_only}"
 msg "- Pure Python: ${flatcc}"
@@ -135,6 +147,12 @@ done
 
 msg "${GREEN}Complete${NOFORMAT}"
 
+if [[ ${circonus_key_set} = true ]]; then
+  _IRONDB_PARAMS="-e IRONDB_CIRCONUS_TOKEN=${CIRCONUS_API_KEY} "
+else
+  _IRONDB_PARAMS="-e IRONDB_URLS=${IRONDB_URLS} "
+fi
+
 msg "${BLUE}Building Docker Container...${NOFORMAT}"
 if [[ ${python_version} -eq 3 ]]
 then 
@@ -143,7 +161,7 @@ then
     msg "${BLUE}Running Docker Container...${NOFORMAT}"
     docker run --rm -v $(dirname $(pwd)):/graphite-irondb \
      -p 8080:80 \
-     -e IRONDB_CIRCONUS_TOKEN=${CIRCONUS_API_KEY} \
+     ${_IRONDB_PARAMS} \
      -e TEST_ONLY=$test_only \
      -e FLATCC=$flatcc \
      --name graphite-irondb-python3 \
@@ -155,7 +173,7 @@ else
     msg "${BLUE}Running Docker Container...${NOFORMAT}"
     docker run --rm -v $(dirname $(pwd)):/graphite-irondb \
      -p 8080:80 \
-     -e IRONDB_CIRCONUS_TOKEN=${CIRCONUS_API_KEY} \
+     ${_IRONDB_PARAMS} \
      -e TEST_ONLY=$test_only \
      -e FLATCC=$flatcc \
      --name graphite-irondb-python2 \
