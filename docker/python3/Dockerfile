@@ -31,8 +31,8 @@ ENV STORAGE_DIR /opt/graphite/storage
 ENV PYTHONPATH="/opt/graphite/lib/:/opt/graphite/lib/python3.10/site-packages/:/opt/graphite/webapp/"
 
 ARG graphite_version=1.1.10
-ARG irondbgraphite_repo="--branch python3-upd https://github.com/deniszh/graphite-irondb"
-#ARG irondbgraphite_repo="https://github.com/circonus-labs/graphite-irondb"
+#ARG irondbgraphite_repo="--branch python3-upd https://github.com/deniszh/graphite-irondb"
+ARG irondbgraphite_repo="https://github.com/circonus-labs/graphite-irondb"
 
 RUN git clone ${irondbgraphite_repo} /usr/local/src/irondbgraphite \
     && cd /usr/local/src/irondbgraphite \
