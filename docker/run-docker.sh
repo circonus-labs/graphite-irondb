@@ -1,4 +1,4 @@
-#!/usr/bin/env bash -x
+#!/usr/bin/env bash
 
 #original script: https://betterdev.blog/minimal-safe-bash-script-template/
 
@@ -17,10 +17,12 @@ Script description here.
 Available options:
 
 -h, --help      Print this help and exit
---python2       Build for Python 2
---python3       Build for Python 3
+--python2       Build for Python 2 (default false)
+--python3       Build for Python 3 (default true)
 --circonus-api  Circonus API Key needed to access api.circonus.com
---test-only     Only run unit tests
+--irondb-urls   IronDB URS (in case of direct server access)
+--test-only     Only run unit tests (default false)
+--pure-python   Do not build flatcc C extension (default false)
 
 
 EOF
@@ -64,10 +66,10 @@ parse_params() {
   CIRCONUS_API_KEY=''
   IRONDB_URL=''
   python_version=0
-  python3=false
+  python3=true
   python2=false
   circonus_key_set=false
-  irondb_url_set=false
+  irondb_urls_set=false
   flatcc=true
 
   while :; do
@@ -76,9 +78,11 @@ parse_params() {
     --no-color) NO_COLOR=1 ;;
     --python2)
       python2=true
+      python3=false
       python_version=2
       ;; 
     --python3)
+      python2=false
       python3=true
       python_version=3
       ;; 
@@ -108,11 +112,13 @@ parse_params() {
 
   # check required params and arguments
   [[ ${circonus_key_set} = false ]] && [[ ${test_only} = false ]] && [[ ${irondb_urls_set} = false ]]\
-   && die "You need to set either CIRCONUS_API_KEY or IRONDB_URLS"
+   && die "You need to set either CIRCONUS_API_KEY or IRONDB_URLS."
   [[ ${circonus_key_set} = true ]] && [[ ${irondb_urls_set} = true ]]\
-   && die "You need to set either CIRCONUS_API_KEY or IRONDB_URLS but not both"
-  [[ $python2 = true ]] && [[ $python3 = true ]] \
+   && die "You need to set either CIRCONUS_API_KEY or IRONDB_URLS but not both."
+  [[ $python2 = false ]] && [[ $python3 = false ]] \
    && die "Please select either --python2 or --python3."
+  [[ $python2 = true ]] && [[ $python3 = true ]] \
+   && die "Please select either --python2 or --python3 but not both."
   [[ ${#args[@]} -gt 0 ]] && die "Unexepected arguments."
 
   return 0
@@ -128,7 +134,7 @@ msg "${BLUE}Parameters:${NOFORMAT}"
 [[ ! -z "${IRONDB_URLS}" ]] && msg "- IronDB URLS: ${IRONDB_URLS}"
 msg "- Python Version: ${python_version}"
 msg "- Test only: ${test_only}"
-msg "- Pure Python: ${flatcc}"
+msg "- Build flatcc: ${flatcc}"
 
 msg "${BLUE}Stopping any instances of graphite-irondb container${NOFORMAT}"
 
