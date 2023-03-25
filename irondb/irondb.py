@@ -7,6 +7,7 @@ import json
 import os
 import binascii
 import re
+import math
 
 try:
     from json.decoder import JSONDecodeError
@@ -450,7 +451,7 @@ class IRONdbMeasurementFetcher(object):
 
         time_info = self.results['from'], self.results['to'], self.results['step']
         if len(self.results['series'].get(name, [])) == 0:
-            return time_info, [None] * ((self.results['to'] - self.results['from']) / self.results['step'])
+            return time_info, [None] * ((self.results['to'] - self.results['from']) // self.results['step'])
 
         return time_info, self.results['series'].get(name, [])
 
@@ -559,7 +560,7 @@ class IRONdbFinder(BaseFinder):
                     # target 480 datapoints in the window and use the rollup that best matches this
                     # 480 comes from max effective resolution 1920px and no more than 1 datapoint per 4 pixels         
                     rollup_list = [1,2,5,10,15,20,30,60,120,300,600,900,1200,1800,3600,7200,10800,21600,28800,43200,86400]
-                    target_datapoints = (end_time - start_time) / 480
+                    target_datapoints = (end_time - start_time) // 480
                     if target_datapoints < self.min_rollup_span or not self.database_rollups:
                         target_datapoints = self.min_rollup_span
                     span = rollup_list[-1]    
