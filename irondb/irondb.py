@@ -7,7 +7,6 @@ import json
 import os
 import binascii
 import re
-import math
 
 try:
     from json.decoder import JSONDecodeError
