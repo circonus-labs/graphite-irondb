@@ -12,10 +12,14 @@ try:
     from json.decoder import JSONDecodeError
 except ImportError:
     JSONDecodeError = ValueError
+
+from future.standard_library import install_aliases
+install_aliases()
+
 try:
-    from urlparse import urlparse, urlunparse
-except ImportError:
     from urllib.parse import urlparse, urlunparse
+except ImportError:
+    from urlparse import urlparse, urlunparse
 
 from collections import OrderedDict
 
@@ -37,10 +41,10 @@ except ImportError:
     BaseTagDB = object
 
 try:
-    import flatcc as irondb_flatbuf
+    from .flatcc import flatcc as irondb_flatbuf
     log.info("IRONdb Using flatcc native Flatbuffer module")
 except ImportError:
-    import flatbuf as irondb_flatbuf
+    from . import flatbuf as irondb_flatbuf
     log.info("IRONdb Using pure Python Flatbuffer module")
 log.info(irondb_flatbuf)
 
@@ -218,6 +222,10 @@ urls = None
 urllength = 4096
 
 class IRONdbLocalSettings(object):
+    __slots__ = ('batch_size', 'headers', 'timeout', 'connection_timeout', 'activity_tracking',
+                 'database_rollups', 'rollup_window', 'min_rollup_span', 'gas', 'gas_url', 'gas_ttl',
+                 'calculate_step_from_target', 'max_retries', 'query_log_enabled',
+                 'zipkin_enabled', 'zipkin_event_trace_level', 'max_step')
     _inst = None
 
     @classmethod
@@ -231,6 +239,7 @@ class IRONdbLocalSettings(object):
 
     def __init__(self):
         global urls
+        self.headers = {}
         try:
             _rotate_urls = getattr(settings, 'IRONDB_URLS_ROTATE')
         except AttributeError:
@@ -264,7 +273,6 @@ class IRONdbLocalSettings(object):
         try:
             token = getattr(settings, 'CIRCONUS_TOKEN')
             if token:
-                self.headers = {}
                 self.headers['X-Circonus-Auth-Token'] = token
                 self.headers['X-Circonus-App-Name'] = 'graphite-web'
         except AttributeError:
@@ -442,7 +450,7 @@ class IRONdbMeasurementFetcher(object):
 
         time_info = self.results['from'], self.results['to'], self.results['step']
         if len(self.results['series'].get(name, [])) == 0:
-            return time_info, [None] * ((self.results['to'] - self.results['from']) / self.results['step'])
+            return time_info, [None] * ((self.results['to'] - self.results['from']) // self.results['step'])
 
         return time_info, self.results['series'].get(name, [])
 
@@ -551,7 +559,7 @@ class IRONdbFinder(BaseFinder):
                     # target 480 datapoints in the window and use the rollup that best matches this
                     # 480 comes from max effective resolution 1920px and no more than 1 datapoint per 4 pixels         
                     rollup_list = [1,2,5,10,15,20,30,60,120,300,600,900,1200,1800,3600,7200,10800,21600,28800,43200,86400]
-                    target_datapoints = (end_time - start_time) / 480
+                    target_datapoints = (end_time - start_time) // 480
                     if target_datapoints < self.min_rollup_span or not self.database_rollups:
                         target_datapoints = self.min_rollup_span
                     span = rollup_list[-1]    
@@ -636,7 +644,7 @@ class IRONdbFinder(BaseFinder):
         new_step = self.max_step
         fetchers_cache = {}
         fetchers_cache[new_step] = fetcher
-        for pattern, names in all_names.items():
+        for pattern, names in list(all_names.items()):
             for name in names:
                 if 'leaf' in name and 'leaf_data' in name:
                     # gas processing
@@ -671,7 +679,7 @@ class IRONdbFinder(BaseFinder):
 
         results = []
         first_correction = False
-        for pattern, names in all_names.items():
+        for pattern, names in list(all_names.items()):
             for name in names:
                 fetcher = fset[0]
                 if 'fetcher' in name:
